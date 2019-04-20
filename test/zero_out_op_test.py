@@ -1,8 +1,10 @@
 import tensorflow as tf
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 class ZeroOutTest(tf.test.TestCase):
   def testZeroOut(self):
-    zero_out_module = tf.load_op_library('../zero_out.so')
+    zero_out_module = tf.load_op_library('./zero_out.so')
     with self.session():
       result = zero_out_module.zero_out([5, 4, 3, 2, 1])
       self.assertAllEqual(result.eval(), [5, 0, 0, 0, 0])
