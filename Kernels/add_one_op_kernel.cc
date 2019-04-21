@@ -19,8 +19,8 @@ limitations under the License.
 using namespace tensorflow;  // NOLINT(build/namespaces)
 
 REGISTER_OP("AddOne")
-    .Input("input: int32")
-    .Output("output: int32")
+    .Input("input: float")
+    .Output("output: float")
     .Doc(R"doc(
 Adds 1 to all elements of the tensor.
 
@@ -28,7 +28,7 @@ output: A Tensor.
   output = input + 1
 )doc");
 
-void AddOneKernelLauncher(const int* in, const int N, int* out);
+void AddOneKernelLauncher(const float* in, const int N, float* out);
 
 class AddOneOp : public OpKernel {
  public:
@@ -37,13 +37,13 @@ class AddOneOp : public OpKernel {
   void Compute(OpKernelContext* context) override {
     // Grab the input tensor
     const Tensor& input_tensor = context->input(0);
-    auto input = input_tensor.flat<int32>();
+    auto input = input_tensor.flat<float>();
 
     // Create an output tensor
     Tensor* output_tensor = nullptr;
     OP_REQUIRES_OK(context, context->allocate_output(0, input_tensor.shape(),
                                                      &output_tensor));
-    auto output = output_tensor->template flat<int32>();
+    auto output = output_tensor->template flat<float>();
 
     // Set all but the first element of the output tensor to 0.
     const int N = input.size();
