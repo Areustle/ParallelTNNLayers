@@ -27,9 +27,9 @@ class Tensor:
         is_new: a flag.
     """
 
-    def __init__(self,rpn=[],bonds=[],cost=0.0,is_new=True):
+    def __init__(self,rpn=[],decomp=[],bonds=[],cost=0.0,is_new=True):
         self.rpn = rpn
-        #self.decomp[:] = [x for x in self.rpn if x != -1] #Translates from reverse polish notation to indicate tensors involved. 
+        self.decomp = decomp  #Translates from reverse polish notation to indicate tensors involved. 
         self.bonds = bonds
         self.cost = cost
         self.is_new = is_new
@@ -103,13 +103,12 @@ def _init(tn):
     """Initialize a set of tensors from a tensor network."""
     tensor_set=[[] for t in tn]
     for t in tn:
-        name=tf.Session().run(t)
-        rpn = [name]
-        #decomp = [x for x in rpn if x != -1]
+        rpn = [t.name]
+        decomp = [x for x in rpn if x != -1]
         bonds=t.get_shape().as_list()
         #bonds = frozenset(bonds)
         cost = 0.0
-        tensor_set[0].append(Tensor(rpn,bonds,cost))
+        tensor_set[0].append(Tensor(rpn,decomp,bonds,cost))
     return tensor_set
 
 
@@ -152,6 +151,3 @@ def _print_tset(tensor_set):
     for level in range(len(tensor_set)):
         for i,t in enumerate(tensor_set[level]):
             print(level,i,t)
-
-def _np_to_list(arr):
-    return map(tuple,arr)
