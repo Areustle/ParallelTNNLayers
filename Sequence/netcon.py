@@ -12,10 +12,11 @@ Reference:
 
 import tensorflow as tf
 import numpy as np
+import math
 import sys
 import logging
 import time
-import config
+#import config
 
 DIMS = {} #Dictionary containing dimension of bonds. (dimensions of indices)
 
@@ -41,7 +42,7 @@ class Tensor:
             self.rpn, list(self.bonds), self.cost, self.decomp, self.is_new)
 
 
-def netcon(tn,bond_dims):
+def netcon(tn,bonds):
     """Find optimal contraction sequence.
 
     Args:
@@ -62,10 +63,11 @@ def netcon(tn,bond_dims):
         rpn: Optimal contraction sequence with reverse polish notation.
         cost: Total contraction cost.
     """
-    tensor_set = _init(tn)
+    tensor_set = _init(tn,bonds)
 
     n = len(tensor_set)
-    xi_min = min(DIMS)
+    min_key=min(DIMS.keys(), key=(lambda k: DIMS[k]))
+    xi_min = DIMS[min_key]
     mu_cap = 1.0
     mu_old = 0.0
 
@@ -73,7 +75,7 @@ def netcon(tn,bond_dims):
         logging.info("netcon: searching with mu_cap={0:.6e}".format(mu_cap))
         mu_next = sys.float_info.max
         for c in range(1,n):
-            for d1 in range((c+1)/2):
+            for d1 in range(math.floor((c+1)/2)):
                 d2 = c-d1-1
                 n1 = len(tensor_set[d1])
                 n2 = len(tensor_set[d2])
@@ -117,17 +119,17 @@ def _init(tn, bonds):
     global DIMS
     i=0
     for t in tn:
+        bondlist=[]
         rpn = [t.name]
         decomp = [x for x in rpn if x != -1]
-        bonds=bonds[i]
         shape=t.get_shape().as_list()
         j=0
-        for char in bonds:
+        for char in bonds[i]:
             DIMS[char]=shape[j] #Running list of index dimensions keyed by bond name
-            bondlist[j]=char
+            bondlist.append(char)
             j+=1
         cost = 0.0
-        tensor_set[0].append(Tensor(rpn,decomp,bondlist,shape,cost))
+        tensor_set[0].append(Tensor(rpn,decomp,bondlist,cost))
         i+=1
     return tensor_set
 
@@ -135,9 +137,10 @@ def _init(tn, bonds):
 def _get_cost(t1,t2):
     """Get the cost of contraction of two tensors."""
     cost = 1.0
-    for b in set(t1.bonds+t2.bonds)+:
+    fullbonds=t1.bonds+t2.bonds
+    for b in set(fullbonds): #Remove duplicate bonds to express an eisen contract.
         cost *= DIMS[b] #Multiplies bond dimensions together.
-    cost += t1.cost + t2.cost
+    cost = cost + t1.cost + t2.cost
     return cost
 
 
@@ -145,8 +148,10 @@ def _contract(t1,t2):
     """Return a contracted tensor"""
     assert (not _is_disjoint(t1,t2))
     rpn = t1.rpn + t2.rpn + [-1]
-    decomp = (t1.decomp).symmetric_difference(t2.decomp) # XOR
+    decomp = set(t1.decomp).symmetric_difference(set(t2.decomp)) # XOR
+    decomp = list(decomp)
     bonds = set(t1.bonds).symmetric_difference(set(t2.bonds))
+    bonds = list(bonds)
     cost = _get_cost(t1,t2)
     return Tensor(rpn,decomp,bonds,cost)
 
