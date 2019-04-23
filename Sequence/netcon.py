@@ -16,9 +16,9 @@ import math
 import sys
 import logging
 import time
-#import config
+import config
 
-DIMS = {} #Dictionary containing dimension of bonds. (dimensions of indices)
+DIMS = {} #Dictionary containing dimensions of bonds. (dimensions of indices)
 
 class Tensor:
     """Strips down a tensor as a list of key properties for the purposes of netcon.
