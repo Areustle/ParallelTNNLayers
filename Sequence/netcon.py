@@ -17,7 +17,7 @@ import logging
 import time
 import config
 
-DIMS = {}
+DIMS = {} #Dictionary containing dimension of bonds. (dimensions of indices)
 
 class Tensor:
     """Strips down a tensor as a list of key properties for the purposes of netcon.
@@ -65,7 +65,7 @@ def netcon(tn,bond_dims):
     tensor_set = _init(tn)
 
     n = len(tensor_set)
-    xi_min = 1
+    xi_min = min(DIMS)
     mu_cap = 1.0
     mu_old = 0.0
 
