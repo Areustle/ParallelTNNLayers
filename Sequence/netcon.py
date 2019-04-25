@@ -17,8 +17,9 @@ import sys
 import logging
 import time
 import config
+import pdb
 
-DIMS = {} #Dictionary containing dimensions of bonds. (dimensions of indices)
+DIMS = {} #Dictionary containing dimension of bonds. (dimensions of indices)
 
 class Tensor:
     """Strips down a tensor as a list of key properties for the purposes of netcon.
@@ -31,7 +32,7 @@ class Tensor:
     """
 
     def __init__(self,rpn=[],decomp=[],bonds=[],cost=0.0,is_new=True):
-        self.rpn = rpn
+        self.rpn = rpn[:]
         self.decomp = decomp  #Translates from reverse polish notation to indicate tensors involved. 
         self.bonds = bonds
         self.cost = cost
@@ -110,7 +111,7 @@ def netcon(tn,bonds):
         logging.debug("netcon: tensor_num=" +  str([ len(s) for s in tensor_set]))
 
     t_final = tensor_set[-1][0]
-    return t_final.rpn, t_final.cost 
+    return t_final.rpn, t_final.cost, tensor_set[2][0].rpn
 
 
 def _init(tn, bonds):
