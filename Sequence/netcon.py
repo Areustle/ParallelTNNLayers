@@ -111,7 +111,7 @@ def netcon(tn,bonds):
         logging.debug("netcon: tensor_num=" +  str([ len(s) for s in tensor_set]))
 
     t_final = tensor_set[-1][0]
-    return t_final.rpn, t_final.cost, tensor_set[2][0].rpn
+    return t_final.rpn, t_final.cost
 
 
 def _init(tn, bonds):
