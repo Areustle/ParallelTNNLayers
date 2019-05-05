@@ -167,7 +167,7 @@ def decomp_tk_dense_nhwc(M, rate, verbose=True):
 
 #     # return factors, last_fact
 
-if __name__ == "main":
+if __name__ == "__main__":
 
     K = np.random.normal(0., 1., [3,3,16,16]).astype(np.float32)
     decomp_svd_conv2d_nhwc(K, 0.1)
