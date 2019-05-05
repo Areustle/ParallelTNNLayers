@@ -136,7 +136,11 @@ void CpForwardUnfusedKernelLauncher(const float* U,
   dim3 blockDim2(8, 1, 16);
 
   default_function_kernel0<<<gridDim0, blockDim0>>>(U, K0, U0);
+  cudaDeviceSynchronize();
+
   default_function_kernel1<<<gridDim1, blockDim1>>>(U0, K1, U1);
+  cudaDeviceSynchronize();
+
   default_function_kernel2<<<gridDim2, blockDim2>>>(U1, K2, V);
   cudaDeviceSynchronize();
 

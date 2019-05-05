@@ -12,7 +12,7 @@ def decomp_svd_conv2d_nhwc(K, rate, verbose=True):
     factors = utils.factorize_conv2d_svd(K, params)
 
     if verbose:
-        print("conv2d_svd decomp kernel sizes:")
+        print("\nconv2d_svd decomp kernel sizes:")
         print(params)
         print("K:  {}".format(K.shape))
         for i, factor in enumerate(factors):
@@ -27,7 +27,7 @@ def decomp_cp_conv2d_nhwc(K, rate, verbose=True):
     factors = utils.factorize_conv2d_cp(K, params)
 
     if verbose:
-        print("conv2d_cp decomp kernel sizes:")
+        print("\nconv2d_cp decomp kernel sizes:")
         print(params)
         print("K:  {}".format(K.shape))
         for i, factor in enumerate(factors):
@@ -42,7 +42,7 @@ def decomp_tk_conv2d_nhwc(K, rate, verbose=True):
     factors = utils.factorize_conv2d_tk(K, params)
 
     if verbose:
-        print("conv2d_tk decomp kernel sizes:")
+        print("\nconv2d_tk decomp kernel sizes:")
         print(params)
         print("K:  {}".format(K.shape))
         for i, factor in enumerate(factors):
@@ -57,7 +57,7 @@ def decomp_tt_conv2d_nhwc(K, rate, verbose=True):
     factors = utils.factorize_conv2d_tt(K, params)
 
     if verbose:
-        print("conv2d_tt decomp kernel sizes:")
+        print("\nconv2d_tt decomp kernel sizes:")
         print(params)
         print("K:  {}".format(K.shape))
         for i, factor in enumerate(factors):
@@ -72,7 +72,7 @@ def decomp_rcp_conv2d_nhwc(K, rate, verbose=True):
     dense_factors, conv_factor = utils.factorize_conv2d_rcp(K, params)
 
     if verbose:
-        print("conv2d_rcp decomp kernel sizes:")
+        print("\nconv2d_rcp decomp kernel sizes:")
         print(params)
         print("K:  {}".format(K.shape))
         for i, factor in enumerate(dense_factors):
@@ -88,7 +88,7 @@ def decomp_rtk_conv2d_nhwc(K, rate, verbose=True):
     input_factors, core_factor, output_factors = utils.factorize_conv2d_rtk(K, params)
 
     if verbose:
-        print("conv2d_rtk decomp kernel sizes:")
+        print("\nconv2d_rtk decomp kernel sizes:")
         print(params)
         print("K:  {}".format(K.shape))
         for i, factor in enumerate(input_factors):
@@ -106,7 +106,7 @@ def decomp_rtt_conv2d_nhwc(K, rate, verbose=True):
     factors, last_fact = utils.factorize_conv2d_rtt(K, params)
 
     if verbose:
-        print("conv2d_rtt decomp kernel sizes:")
+        print("\nconv2d_rtt decomp kernel sizes:")
         print(params)
         print("K:  {}".format(K.shape))
         for i, factor in enumerate(factors):
@@ -122,7 +122,7 @@ def decomp_cp_dense_nhwc(M, rate, verbose=True):
     factors = utils.factorize_dense_cp(M, params)
 
     if verbose:
-        print("CP dense decomp matrix sizes:")
+        print("\nCP dense decomp matrix sizes:")
         print(params)
         print("M:  {}".format(M.shape))
         for i, factor in enumerate(factors):
@@ -138,7 +138,7 @@ def decomp_tk_dense_nhwc(M, rate, verbose=True):
     input_factors, core_factor, output_factors = utils.factorize_dense_tk(M, params)
 
     if verbose:
-        print("TK dense decomp matrix sizes:")
+        print("\nTK dense decomp matrix sizes:")
         print(params)
         print("M:  {}".format(M.shape))
         for i, factor in enumerate(input_factors):
