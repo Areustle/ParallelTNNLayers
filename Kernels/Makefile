@@ -24,7 +24,7 @@ nmode_3_2_op_kernel.so: nmode_3_2_op_kernel.cc nmode_3_2_op_kernel.cu.o
 cp_forward_unfused.cu.o: cp_forward_unfused.cu
 	nvcc -o $@ $< -O3 -std=c++14 -arch=$(CUDA_ARCH) $(TF_CFLAGS) -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC -c
 
-cp_forward_unfused.so : cp_forward_unfused.cc cp_forward_unfused.cu.o \
+cp_forward_unfused.so : cp_forward_unfused.cc cp_forward_unfused.cu.o
 	g++  -o $@ $^ -O3 -std=c++14 -shared -fPIC $(TF_CFLAGS) $(TF_LFLAGS) $(CUDA_LIB) -lcudart
 
 
