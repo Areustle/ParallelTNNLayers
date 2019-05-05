@@ -167,18 +167,20 @@ def decomp_tk_dense_nhwc(M, rate, verbose=True):
 
 #     # return factors, last_fact
 
-K = np.random.normal(0., 1., [3,3,16,16]).astype(np.float32)
-decomp_svd_conv2d_nhwc(K, 0.1)
-decomp_cp_conv2d_nhwc(K, 0.1)
-decomp_tk_conv2d_nhwc(K, 0.1)
-decomp_tt_conv2d_nhwc(K, 0.1)
+if __name__ == "main":
 
-decomp_rcp_conv2d_nhwc(K, 0.1)
-decomp_rtk_conv2d_nhwc(K, 0.1)
-decomp_rtt_conv2d_nhwc(K, 0.1)
+    K = np.random.normal(0., 1., [3,3,16,16]).astype(np.float32)
+    decomp_svd_conv2d_nhwc(K, 0.1)
+    decomp_cp_conv2d_nhwc(K, 0.1)
+    decomp_tk_conv2d_nhwc(K, 0.1)
+    decomp_tt_conv2d_nhwc(K, 0.1)
 
-M = np.random.normal(0., 1., [256,256]).astype(np.float32)
-decomp_cp_dense_nhwc(M, 0.1)
-decomp_tk_dense_nhwc(M, 0.1)
-# decomp_tt_dense_nhwc(M, 0.1)
+    decomp_rcp_conv2d_nhwc(K, 0.1)
+    decomp_rtk_conv2d_nhwc(K, 0.1)
+    decomp_rtt_conv2d_nhwc(K, 0.1)
+
+    M = np.random.normal(0., 1., [256,256]).astype(np.float32)
+    decomp_cp_dense_nhwc(M, 0.1)
+    decomp_tk_dense_nhwc(M, 0.1)
+    # decomp_tt_dense_nhwc(M, 0.1)
 
