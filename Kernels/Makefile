@@ -27,11 +27,18 @@ cp_forward_unfused.cu.o: cp_forward_unfused.cu
 cp_forward_unfused.so : cp_forward_unfused.cc cp_forward_unfused.cu.o
 	g++  -o $@ $^ -O3 -std=c++14 -shared -fPIC $(TF_CFLAGS) $(TF_LFLAGS) $(CUDA_LIB) -lcudart
 
+cp_0_nhwc.cu.o: cp_0_nhwc.cu
+	nvcc -o $@ $< -O3 -std=c++14 -arch=$(CUDA_ARCH) $(TF_CFLAGS) -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC -c
+
+cp_0_nhwc.so : cp_0_nhwc.cc cp_0_nhwc.cu.o
+	g++  -o $@ $^ -O3 -std=c++14 -shared -fPIC $(TF_CFLAGS) $(TF_LFLAGS) $(CUDA_LIB) -lcudart
+
 
 .PHONY : all
 all : add_one_op_kernel.so \
 	nmode_3_2_op_kernel.so \
-	cp_forward_unfused.so
+	cp_forward_unfused.so \
+	cp_0_nhwc.so
 
 
 # basic_cublas_example.out \
