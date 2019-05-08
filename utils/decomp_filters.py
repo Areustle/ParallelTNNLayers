@@ -5,20 +5,33 @@ import os
 import utils
 import layers
 
-def decomp_svd_conv2d_nhwc(K, rate, verbose=True):
+def decomp_svd_conv2d_nhwc(U, K, rate, verbose=True):
     kernel_size, kernel_size, input_filters, output_filters = K.shape
 
     params = layers.generate_params_conv2d_svd(input_filters, output_filters, kernel_size, rate)
     factors = utils.factorize_conv2d_svd(K, params)
 
-    if verbose:
-        print("\nconv2d_svd decomp kernel sizes:")
-        print(params)
-        print("K:  {}".format(K.shape))
-        for i, factor in enumerate(factors):
-            print(" K{}: {}".format(i, factor.shape))
+    # if verbose:
+    #     print("\nconv2d_svd decomp kernel sizes:")
+    #     print(params)
+    #     print("K:  {}".format(K.shape))
+    #     for i, factor in enumerate(factors):
+    #         print(" K{}: {}".format(i, factor.shape))
 
-    return factors
+    kernels = {}
+    kernels["kernel_0"] = factors[0]
+    kernels["kernel_1"] = factors[1]
+
+    layers.conv2d_svd(U, kernels, data_format="NCHW")
+    return kernels
+
+
+
+
+
+
+
+
 
 def decomp_cp_conv2d_nhwc(K, rate, verbose=True):
     kernel_size, kernel_size, input_filters, output_filters = K.shape
@@ -26,14 +39,19 @@ def decomp_cp_conv2d_nhwc(K, rate, verbose=True):
     params = layers.generate_params_conv2d_cp(input_filters, output_filters, kernel_size, rate)
     factors = utils.factorize_conv2d_cp(K, params)
 
-    if verbose:
-        print("\nconv2d_cp decomp kernel sizes:")
-        print(params)
-        print("K:  {}".format(K.shape))
-        for i, factor in enumerate(factors):
-            print(" K{}: {}".format(i, factor.shape))
+    # if verbose:
+    #     print("\nconv2d_cp decomp kernel sizes:")
+    #     print(params)
+    #     print("K:  {}".format(K.shape))
+    #     for i, factor in enumerate(factors):
+    #         print(" K{}: {}".format(i, factor.shape))
 
-    return factors
+    kernels = {}
+    kernels["kernel_0"] = factors[0]
+    kernels["kernel_1"] = factors[1]
+    kernels["kernel_2"] = factors[2]
+
+    return kernels
 
 def decomp_tk_conv2d_nhwc(K, rate, verbose=True):
     kernel_size, kernel_size, input_filters, output_filters = K.shape
@@ -48,7 +66,12 @@ def decomp_tk_conv2d_nhwc(K, rate, verbose=True):
         for i, factor in enumerate(factors):
             print(" K{}: {}".format(i, factor.shape))
 
-    return factors
+    kernels = {}
+    kernels["kernel_0"] = factors[0]
+    kernels["kernel_1"] = factors[1]
+    kernels["kernel_2"] = factors[2]
+
+    return kernels
 
 def decomp_tt_conv2d_nhwc(K, rate, verbose=True):
     kernel_size, kernel_size, input_filters, output_filters = K.shape
@@ -63,7 +86,13 @@ def decomp_tt_conv2d_nhwc(K, rate, verbose=True):
         for i, factor in enumerate(factors):
             print(" K{}: {}".format(i, factor.shape))
 
-    return factors
+    kernels = {}
+    kernels["kernel_0"] = factors[0]
+    kernels["kernel_1"] = factors[1]
+    kernels["kernel_2"] = factors[2]
+
+    return kernels
+
 
 def decomp_rcp_conv2d_nhwc(K, rate, verbose=True):
     kernel_size, kernel_size, input_filters, output_filters = K.shape
@@ -169,18 +198,18 @@ def decomp_tk_dense_nhwc(M, rate, verbose=True):
 
 if __name__ == "__main__":
 
+    U = np.random.normal(0., 1., [8,16,32,32]).astype(np.float32)
     K = np.random.normal(0., 1., [3,3,16,16]).astype(np.float32)
-    decomp_svd_conv2d_nhwc(K, 0.1)
-    decomp_cp_conv2d_nhwc(K, 0.1)
-    decomp_tk_conv2d_nhwc(K, 0.1)
-    decomp_tt_conv2d_nhwc(K, 0.1)
+    decomp_svd_conv2d_nhwc(U, K, 0.1)
+    # decomp_cp_conv2d_nhwc(U, K, 0.1)
+    # decomp_tk_conv2d_nhwc(U, K, 0.1)
+    # decomp_tt_conv2d_nhwc(U, K, 0.1)
 
-    decomp_rcp_conv2d_nhwc(K, 0.1)
-    decomp_rtk_conv2d_nhwc(K, 0.1)
-    decomp_rtt_conv2d_nhwc(K, 0.1)
+    # decomp_rcp_conv2d_nhwc(U, K, 0.1)
+    # decomp_rtk_conv2d_nhwc(U, K, 0.1)
+    # decomp_rtt_conv2d_nhwc(U, K, 0.1)
 
-    M = np.random.normal(0., 1., [256,256]).astype(np.float32)
-    decomp_cp_dense_nhwc(M, 0.1)
-    decomp_tk_dense_nhwc(M, 0.1)
-    # decomp_tt_dense_nhwc(M, 0.1)
+    # M = np.random.normal(0., 1., [50,50]).astype(np.float32)
+    # decomp_cp_dense_nhwc(M, 0.1)
+    # decomp_tk_dense_nhwc(M, 0.1)
 

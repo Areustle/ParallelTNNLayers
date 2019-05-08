@@ -193,8 +193,12 @@ def conv2d(inputs, kernels, strides = 1, padding = "SAME", use_bias = False, dat
   assert len(kernels) == 1 + use_bias, "The number of kernels is illegal."
 
   strides = [1, strides, strides, 1] if data_format == "NHWC" else [1, 1, strides, strides]
+  print(colored((strides, data_format), "cyan"))
+  print("K", colored(kernels["kernel"].shape, "cyan"))
 
   outputs = tf.nn.conv2d(inputs, kernels["kernel"], strides = strides, padding = padding, data_format = data_format)
+  print("U", colored(inputs.shape, "cyan"))
+  print("V", colored(outputs.shape, "cyan"))
   if use_bias: outputs = outputs + kernels["bias"]
 
   return outputs
@@ -220,9 +224,15 @@ def conv2d_svd(inputs, kernels, strides = 1, padding = 'SAME', use_bias = False,
 
   strides_0 = [1, strides, 1, 1] if data_format == "NHWC" else [1, 1, strides, 1]
   strides_1 = [1, 1, strides, 1] if data_format == "NHWC" else [1, 1, 1, strides]
+  print(colored((strides, data_format), "cyan"))
+  print("K0", colored(kernels["kernel_0"].shape, "cyan"))
+  print("K1", colored(kernels["kernel_1"].shape, "cyan"))
 
   tensor = tf.nn.conv2d(inputs, kernels["kernel_0"], strides = strides_0, padding = padding, data_format = data_format)
   outputs = tf.nn.conv2d(tensor, kernels["kernel_1"], strides = strides_1, padding = padding, data_format = data_format)
+  print("U ", colored(inputs.shape, "cyan"))
+  print("U0", colored(tensor.shape, "cyan"))
+  print("V ", colored(outputs.shape, "cyan"))
   if use_bias: outputs = outputs + kernels["bias"]
 
   return outputs
@@ -254,10 +264,18 @@ def conv2d_cp(inputs, kernels, strides = 1, padding = "SAME", use_bias = False, 
   assert len(kernels) == 3 + use_bias, "The number of kernels does not match."
 
   strides = [1, strides, strides, 1] if data_format == "NHWC" else [1, 1, strides, strides]
+  print(colored((strides, data_format, padding), "cyan"))
+  print("K0", colored(kernels["kernel_0"].shape, "cyan"))
+  print("K1", colored(kernels["kernel_1"].shape, "cyan"))
+  print("K2", colored(kernels["kernel_2"].shape, "cyan"))
 
+  print("U ", colored(inputs.shape, "cyan"))
   tensor = tf.nn.conv2d(inputs, kernels["kernel_0"], strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+  print("U0", colored(tensor.shape, "cyan"))
   tensor = tf.nn.depthwise_conv2d(tensor, kernels["kernel_1"], strides = strides, padding = padding, data_format = data_format)
+  print("U1", colored(tensor.shape, "cyan"))
   outputs = tf.nn.conv2d(tensor, kernels["kernel_2"], strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+  print("V ", colored(outputs.shape, "cyan"))
 
   if use_bias: outputs = outputs + kernels["bias"]
   return outputs
@@ -289,10 +307,18 @@ def conv2d_tk(inputs, kernels, strides = 1, padding = 'SAME', use_bias = False, 
   assert len(kernels) == 3 + use_bias, "The number of kernels does not match."
 
   strides = [1, strides, strides, 1] if data_format == "NHWC" else [1, 1, strides, strides]
+  print(colored((strides, data_format, padding), "cyan"))
+  print("K0", colored(kernels["kernel_0"].shape, "cyan"))
+  print("K1", colored(kernels["kernel_1"].shape, "cyan"))
+  print("K2", colored(kernels["kernel_2"].shape, "cyan"))
 
+  print("U ", colored(inputs.shape, "cyan"))
   tensor = tf.nn.conv2d(inputs, kernels["kernel_0"], strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+  print("U0", colored(tensor.shape, "cyan"))
   tensor = tf.nn.conv2d(tensor, kernels["kernel_1"], strides = strides, padding = padding, data_format = data_format)
+  print("U1", colored(tensor.shape, "cyan"))
   outputs = tf.nn.conv2d(tensor, kernels["kernel_2"], strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+  print("V ", colored(outputs.shape, "cyan"))
 
   if use_bias: outputs = outputs + kernels["bias"]
   return outputs
@@ -327,11 +353,21 @@ def conv2d_tt(inputs, kernels, strides = 1, padding = 'SAME', use_bias = False, 
 
   strides_0 = [1, strides, 1, 1] if data_format == "NHWC" else [1, 1, strides, 1]
   strides_1 = [1, 1, strides, 1] if data_format == "NHWC" else [1, 1, 1, strides]
+  print(colored((strides_0, strides_1, data_format, padding), "cyan"))
+  print("K0", colored(kernels["kernel_0"].shape, "cyan"))
+  print("K1", colored(kernels["kernel_1"].shape, "cyan"))
+  print("K2", colored(kernels["kernel_2"].shape, "cyan"))
+  print("K3", colored(kernels["kernel_3"].shape, "cyan"))
 
+  print("U ", colored(inputs.shape, "cyan"))
   tensor = tf.nn.conv2d(inputs, kernels["kernel_0"], strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+  print("U0", colored(tensor.shape, "cyan"))
   tensor = tf.nn.conv2d(tensor, kernels["kernel_1"], strides = strides_0, padding = padding, data_format = data_format)
+  print("U1", colored(tensor.shape, "cyan"))
   tensor = tf.nn.conv2d(tensor, kernels["kernel_2"], strides = strides_1, padding = padding, data_format = data_format)
+  print("U2", colored(tensor.shape, "cyan"))
   outputs = tf.nn.conv2d(tensor, kernels["kernel_3"], strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+  print("V ", colored(outputs.shape, "cyan"))
 
   if use_bias: outputs = outputs + kernels["bias"]
   return outputs
@@ -367,8 +403,11 @@ def generate_params_conv2d_tt(input_filters, output_filters, kernel_size, rate):
 # Standard dense layer
 def dense(inputs, kernels, use_bias = False):
   assert len(kernels) == 1 + use_bias, "The number of kernels does not match."
+  print("K0", colored(kernels["kernel"].shape, "cyan"))
 
+  print("U ", colored(inputs.shape, "cyan"))
   outputs = tf.matmul(inputs, kernels["kernel"])
+  print("V ", colored(outputs.shape, "cyan"))
   if use_bias: outputs = outputs + kernels["bias"]
 
   return outputs
@@ -397,6 +436,7 @@ def dense_cp(inputs, kernels, use_bias = False):
     if l: assert(shape[0] == rank), "The 1st-dimension of the kernels should match."
     rank, input_shape[l], output_shape[l] = shape
 
+  print(colored((rank, input_shape, output_shape), "cyan"))
   # (1) contract with the first kernel
   tensor = tf.reshape(inputs, [-1] + input_shape)
   tensor = tf.tensordot(tensor, kernels["kernel_0"], axes = [[1], [1]])
@@ -433,7 +473,7 @@ def generate_kernels_dense_cp(input_units, output_units, use_bias, params):
   return kernels
 
 def generate_params_dense_cp(input_units, output_units, rate):
-  input_shape = generate_shape(input_units, order = 2)
+  input_shape = generate_shape(input_units, base = DEFAULT_FACTORIZATION_BASE)
   order = len(input_shape)
   assert order >= 2, "The input_units is too small to be further factorized."
 
@@ -522,8 +562,8 @@ def generate_kernels_dense_tk(input_units, output_units, use_bias, params):
   return kernels
 
 def generate_params_dense_tk(input_units, output_units, rate):
-  input_shape = generate_shape(input_units, order = 2)
-  output_shape = generate_shape(output_units, order = 2)
+  input_shape = generate_shape(input_units, base = DEFAULT_FACTORIZATION_BASE)
+  output_shape = generate_shape(output_units, base = DEFAULT_FACTORIZATION_BASE)
   order = len(input_shape) + len(output_shape)
 
   original_size = input_units * output_units
@@ -614,8 +654,6 @@ def generate_params_dense_tt(input_units, output_units, rate):
 
 # Advanced Parafac-convolutional layer
 def conv2d_rcp(inputs, kernels, strides = 1, padding = "SAME", use_bias = False, data_format = "NHWC"):
-  print(colored((inputs.shape), 'cyan'))
-  print(colored(kernels, 'blue'))
 
   # (1) dense kernels
   order, input_shape, output_shape = 0, [], []
@@ -637,23 +675,44 @@ def conv2d_rcp(inputs, kernels, strides = 1, padding = "SAME", use_bias = False,
   # axes for tensor contraction
   axes = [[3], [0]] if data_format == "NHWC" else [[1], [0]]
 
+  print(colored((order, input_shape, output_shape, axes, strides, data_format, padding), "cyan"))
+  for k, v in kernels.items():
+      print(k, colored(v.shape, "cyan"))
+
+  print("U", colored(inputs.shape, "cyan"))
   # (1.1) operate with first dense kernel
   if data_format == "NHWC":
     tensor = tf.reshape(inputs, [-1] + inputs.shape.as_list()[1:3] + input_shape)
   else:
     tensor = tf.reshape(inputs, [-1] + input_shape + inputs.shape.as_list()[2:4])
+  print("reshape U")
+  print("U", colored(tensor.shape, "cyan"))
+
+  # NCHW (?, 4, 4, 32, 32)
+  # NHWC (?, 32, 32, 4, 4)
 
   kernel = tf.transpose(kernels["kernel_0"], perm = [1, 2, 0])
+  print("transpose K0, perm = [1,2,0]")
+  print("K0", colored(kernel.shape, "cyan"))
   tensor = tf.tensordot(tensor, kernel, axes = axes)
+  print("U0 = U x^1_0  K0")
+  print("U0", colored(tensor.shape, "cyan"))
 
   tensor = tf.transpose(tensor, perm = [order + 3] + list(range(order + 3)))
+  print("transpose U1, perm = [5,0,1,2,3,4]")
+  print("U0", colored(tensor.shape, "cyan"))
 
+  print("Loop over tensordot")
   # (1.2) operate with the other dense kernels
   contract = lambda var: (tf.tensordot(var[0], var[1], axes = axes), 0)
   for l in range(1, order):
+    print("K{}".format(l), colored(kernels["kernel_" + str(l)].shape, "cyan"))
     tensor, _ = tf.map_fn(contract, (tensor, kernels["kernel_" + str(l)]))
+    print("U{}".format(l), colored((tensor.shape), 'cyan'))
 
   tensor = tf.reshape(tensor, [rank] + [-1] + tensor.shape.as_list()[2:4] + [np.prod(output_shape)])
+  print("reshape U1")
+  print("U1", colored((tensor.shape), 'cyan'))
 
   # (2.1) operate with the convolutional kernel
   if "kernel_conv" in kernels:
@@ -664,14 +723,24 @@ def conv2d_rcp(inputs, kernels, strides = 1, padding = "SAME", use_bias = False,
       tensor = tf.transpose(tensor, perm = [1, 0, 4, 2, 3])
       kernel = tf.reshape(kernels["kernel_conv"], [1, shape[0], shape[1], rank, 1])
 
+    print("transpose U1, perm=[1,0,4,2,3]")
+    print("U", colored(tensor.shape, "cyan"))
+    print("reshape Kconv, perm = [{},{},{},{},{}]".format(1, shape[0], shape[1], rank, 1))
+    print("Kconv", colored(kernel.shape, "cyan"))
+
     strides_3d = [1, strides, strides, 1, 1] if data_format == "NHWC" else [1, 1, 1, strides, strides]
     data_format_3d = "NDHWC" if data_format == "NHWC" else "NCDHW"
     tensor = tf.nn.conv3d(tensor, kernel, strides = strides_3d, padding = padding, data_format = data_format_3d)
+    print(colored((strides_3d, data_format_3d), 'yellow'))
+    print("V = U1 (3dconv) K0")
+    print("V", colored(tensor.shape, "cyan"))
 
     if data_format == "NHWC":
       outputs = tf.reshape(tensor, [-1] + tensor.shape.as_list()[1:4])
     else:
       outputs = tf.reshape(tensor, [-1] + tensor.shape.as_list()[2:5])
+    print("reshape V, perm = [{},{}]".format(-1, tensor.shape.as_list()[2:5]))
+    print("V          ", colored(outputs.shape, "cyan"))
 
   # (2.2) downsample the feature maps if there is no convolutional kernel
   else:

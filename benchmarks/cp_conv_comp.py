@@ -45,20 +45,21 @@ if __name__ == "__main__":
 
     CPbench = tf.test.Benchmark()
     U, K0, K1, K2 = create_op_pairs()
-    cp_op_module = tf.load_op_library('../Kernels/cp_forward_unfused.so')
+    # cp_op_module = tf.load_op_library('../Kernels/cp_forward_unfused.so')
+    cp_op_module = tf.load_op_library('../Kernels/cp_0_nhwc.so')
 
     with tf.Session() as sess:
         with tf.device('/device:GPU:0'):
             padding = "SAME"
             data_format = 'NHWC'
 
-            V_orig = tf.nn.conv2d(U, K0.reshape(1,1,16,6), strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
-            V_orig = tf.nn.depthwise_conv2d(V_orig, K1, strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
-            V_orig = tf.nn.conv2d(V_orig, K2.reshape(1,1,6,16), strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+            V_orig = tf.nn.conv2d(U, K0.reshape(1,1,16,6), strides = [1, 1, 1, 1], padding = padding, use_cudnn_on_gpu=True, data_format = data_format)
+            # V_orig = tf.nn.depthwise_conv2d(V_orig, K1, strides = [1, 1, 1, 1], padding = padding, data_format = data_format)
+            # V_orig = tf.nn.conv2d(V_orig, K2.reshape(1,1,6,16), strides = [1, 1, 1, 1], padding = padding, use_cudnn_on_gpu=False, data_format = data_format)
 
             CPbench.run_op_benchmark(sess, V_orig, name='TF_op', min_iters=100)
 
-            V_custom = cp_op_module.cp_forward_unfused(U, K0, K1, K2)
+            V_custom = cp_op_module.cp_forward_unfused(U, K0)
 
             CPbench.run_op_benchmark(sess, V_custom, name='custom_op', min_iters=100)
 

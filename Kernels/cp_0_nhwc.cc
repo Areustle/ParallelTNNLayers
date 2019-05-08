@@ -10,7 +10,7 @@ REGISTER_OP("CpForwardUnfused")
     .Doc(R"doc(Calculate the first step of CP decomposed forward convolution operator)doc");
 
 /* void CpForwardUnfusedKernelLauncher(const float* input, const float* kernel0, float* V); */
-void Cp0NhwcKernelLauncher(const float* U, const float* K0 float* U0);
+void Cp0NhwcKernelLauncher(const float* U, const float* K0, float* U0);
 
 class Cp0NhwcOp : public OpKernel {
  public:
@@ -57,4 +57,4 @@ class Cp0NhwcOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("Cp0Nhwc").Device(DEVICE_GPU), Cp0NhwcOp);
+REGISTER_KERNEL_BUILDER(Name("CpForwardUnfused").Device(DEVICE_GPU), Cp0NhwcOp);
