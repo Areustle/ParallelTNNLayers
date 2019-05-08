@@ -230,6 +230,7 @@ def conv2d_svd(inputs, kernels, strides = 1, padding = 'SAME', use_bias = False,
 
   tensor = tf.nn.conv2d(inputs, kernels["kernel_0"], strides = strides_0, padding = padding, data_format = data_format)
   outputs = tf.nn.conv2d(tensor, kernels["kernel_1"], strides = strides_1, padding = padding, data_format = data_format)
+
   print("U ", colored(inputs.shape, "cyan"))
   print("U0", colored(tensor.shape, "cyan"))
   print("V ", colored(outputs.shape, "cyan"))
@@ -494,11 +495,11 @@ def generate_params_dense_cp(input_units, output_units, rate):
 # Tucker-dense layer
 def dense_tk(inputs, kernels, use_bias = False):
   # extract parameters from the kernels
-  ranks = kernels["core_kernel"].shape.as_list()
+  ranks = kernels["core_kernel"].shape
 
   input_order, input_shape = 0, []
   while "input_kernel_" + str(input_order) in kernels:
-    shape = kernels["input_kernel_" + str(input_order)].shape.as_list()
+    shape = kernels["input_kernel_" + str(input_order)].shape
     assert len(shape) == 2, "The input_kernels should be 2-order."
     assert ranks[input_order] == shape[1], \
       "The 2nd-dimension of the input_kernel should match the dimension in the core_kernel."
@@ -507,29 +508,45 @@ def dense_tk(inputs, kernels, use_bias = False):
 
   output_order, output_shape = 0, []
   while "output_kernel_" + str(output_order) in kernels:
-    shape = kernels["output_kernel_" + str(output_order)].shape.as_list()
+    shape = kernels["output_kernel_" + str(output_order)].shape
     assert len(shape) == 2, "The output_kernels should be 2-order."
     assert ranks[input_order + output_order] == shape[0], \
       "The 1st-dimension of the output_kernel should match the dimension in the core_kernel."
     output_shape.append(shape[1])
     output_order += 1
 
+  print(colored((ranks, input_shape, output_shape), "cyan"))
   assert input_order + output_order == len(ranks), \
     "The length of ranks should be equal to the sum of lengths of input_shape and output_shape."
 
+  print("input K0", colored(kernels["input_kernel_0"].shape, "cyan"))
+  print("input K1", colored(kernels["input_kernel_1"].shape, "cyan"))
+  print("core K", colored(kernels["core_kernel"].shape, "cyan"))
+  print("output K0", colored(kernels["output_kernel_0"].shape, "cyan"))
+  print("output K1", colored(kernels["output_kernel_1"].shape, "cyan"))
+
+  print("U", colored(inputs.shape, "cyan"))
+
   # (1) operate with the input kernels
   tensor = tf.reshape(inputs, [-1] + input_shape)
+  print("reshaped inputs", colored(tensor.shape, "cyan"))
   for l in range(input_order):
     tensor = tf.tensordot(tensor, kernels["input_kernel_" + str(l)], axes = [[1], [0]])
+    print("Ul x^1_0 in_Kl", colored(tensor.shape, "cyan"))
 
   # (2) operate with the core kernel
   tensor = tf.tensordot(tensor, kernels["core_kernel"], axes = [list(range(1, input_order + 1)), list(range(input_order))])
+  axes = axes = [list(range(1, input_order + 1)), list(range(input_order))]
+  print("Ul tensordot(", colored("{}".format(axes), "red"),
+          ") core_K", colored(tensor.shape, "cyan"))
 
   # (3) operate with the output kernels
   for l in range(output_order):
     tensor = tf.tensordot(tensor, kernels["output_kernel_" + str(l)], axes = [[1], [0]])
+    print("Ul x^1_0 out_Kl", colored(tensor.shape, "cyan"))
 
   outputs = tf.reshape(tensor, [-1, np.prod(output_shape)])
+  print("reshaped outputs", colored(outputs.shape, "cyan"))
   if use_bias: outputs = outputs + kernels["bias"]
   return outputs
 
@@ -562,8 +579,8 @@ def generate_kernels_dense_tk(input_units, output_units, use_bias, params):
   return kernels
 
 def generate_params_dense_tk(input_units, output_units, rate):
-  input_shape = generate_shape(input_units, base = DEFAULT_FACTORIZATION_BASE)
-  output_shape = generate_shape(output_units, base = DEFAULT_FACTORIZATION_BASE)
+  input_shape = generate_shape(input_units, base = 8)
+  output_shape = generate_shape(output_units, base = 8)
   order = len(input_shape) + len(output_shape)
 
   original_size = input_units * output_units
