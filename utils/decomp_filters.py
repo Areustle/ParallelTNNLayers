@@ -160,23 +160,34 @@ def decomp_cp_dense_nhwc(M, rate, verbose=True):
     return factors
 
 
-def decomp_tk_dense_nhwc(M, rate, verbose=True):
+def decomp_tk_dense_nhwc(U, M, rate, verbose=True):
     xdim, ydim = M.shape
 
     params = layers.generate_params_dense_tk(xdim, ydim, rate)
     input_factors, core_factor, output_factors = utils.factorize_dense_tk(M, params)
 
+    kernels = {}
+    for i, factor in enumerate(input_factors):
+        kernels["input_kernel_{}".format(i)] = factor
+
+    kernels["core_kernel"] = core_factor
+    for i, factor in enumerate(output_factors):
+        kernels["output_kernel_{}".format(i)] = factor
+
     if verbose:
         print("\nTK dense decomp matrix sizes:")
-        print(params)
-        print("M:  {}".format(M.shape))
-        for i, factor in enumerate(input_factors):
-            print(" input M{}: {}".format(i, factor.shape))
-        print(" core M: {}".format(factor.shape))
-        for i, factor in enumerate(output_factors):
-            print(" output M{}: {}".format(i, factor.shape))
 
-    return input_factors, core_factor, output_factors
+    layers.dense_tk(U, kernels)
+
+    #     print(params)
+    #     print("M:  {}".format(M.shape))
+    #     for i, factor in enumerate(input_factors):
+    #         print(" input M{}: {}".format(i, factor.shape))
+    #     print(" core M: {}".format(factor.shape))
+    #     for i, factor in enumerate(output_factors):
+    #         print(" output M{}: {}".format(i, factor.shape))
+
+    # return input_factors, core_factor, output_factors
 
 
 # def decomp_tt_dense_nhwc(M, rate, verbose=True):
@@ -200,7 +211,7 @@ if __name__ == "__main__":
 
     U = np.random.normal(0., 1., [8,16,32,32]).astype(np.float32)
     K = np.random.normal(0., 1., [3,3,16,16]).astype(np.float32)
-    decomp_svd_conv2d_nhwc(U, K, 0.1)
+    # decomp_svd_conv2d_nhwc(U, K, 0.1)
     # decomp_cp_conv2d_nhwc(U, K, 0.1)
     # decomp_tk_conv2d_nhwc(U, K, 0.1)
     # decomp_tt_conv2d_nhwc(U, K, 0.1)
@@ -209,7 +220,7 @@ if __name__ == "__main__":
     # decomp_rtk_conv2d_nhwc(U, K, 0.1)
     # decomp_rtt_conv2d_nhwc(U, K, 0.1)
 
-    # M = np.random.normal(0., 1., [50,50]).astype(np.float32)
+    M = np.random.normal(0., 1., [128,128]).astype(np.float32)
     # decomp_cp_dense_nhwc(M, 0.1)
-    # decomp_tk_dense_nhwc(M, 0.1)
+    decomp_tk_dense_nhwc(U, M, 0.1)
 
