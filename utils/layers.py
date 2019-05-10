@@ -799,6 +799,27 @@ def generate_kernels_conv2d_rcp(input_filters, output_filters, kernel_size, use_
   return kernels
 
 def generate_params_conv2d_rcp(input_filters, output_filters, kernel_size, rate):
+  """
+  Parameters
+  ==========
+    input_filters: Number of in_channels defined in the Convolution Kernel.
+        In TensorFlow this is the 2nd element of the shape:
+                                      vvvvvvvvvvv
+        [filter_height, filter_width, in_channels, out_channels]
+
+    output_filters: Number of out_channels defined in the Convolution Kernel.
+        In TensorFlow this is the 3rd element of the shape:
+                                                   vvvvvvvvvvvv
+        [filter_height, filter_width, in_channels, out_channels]
+
+    kernel_size: Height and Width of the Convolution Kernel.
+        In TensorFlow this is the 0th == 1st elements of the shape:
+        vvvvvvvvvvvvvv  vvvvvvvvvvvv
+        [filter_height, filter_width, in_channels, out_channels]
+
+    rate: The compression rate
+    """
+
   input_shape = generate_shape(input_filters, order = 2)
   order = len(input_shape)
   output_shape = generate_shape(output_filters, order = order)
