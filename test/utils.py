@@ -160,17 +160,32 @@ def factorize_conv2d_cp(tensor, params):
 
   tensor = np.moveaxis(tensor, 2, 0)
   tensor = np.reshape(tensor, (shape[2], shape[0] * shape[1], shape[3]))
-  print (tensor.shape)
+  # print (tensor.shape)
   factors = parafac(tensor, rank)
 
-  for i, f in enumerate(factors):
-      print(i, f.shape)
+  # for i, f in enumerate(factors):
+  #     print(i, f.shape)
 
   factors[0] = np.reshape(factors[0], (1, 1, shape[2], rank))
   factors[1] = np.reshape(factors[1], (shape[0], shape[1], rank, 1))
   factors[2] = np.reshape(np.transpose(factors[2]), (1, 1, rank, shape[3]))
 
   return factors
+
+def recompose_conv2d_cp(factors, params):
+    rank = params["rank"]
+    channels = factors[0].shape[2]
+    ksz = factors[1].shape[0]
+
+    H0 = factors[0].reshape((channels, rank))
+    H1 = factors[1].reshape((ksz * ksz, rank))
+    H2 = factors[2].reshape((rank, channels)).transpose([1,0])
+
+    K = tl.kruskal_to_tensor( [H0, H1, H2] )
+    K = np.reshape(K, (channels, ksz, ksz, channels))
+    K = np.moveaxis(K, 0, 2)
+
+    return K
 
 def load_params_conv2d_cp(sess, reference, tensorized, use_bias, params):
   tensor = reference["kernel"]
@@ -275,6 +290,24 @@ def factorize_dense_cp(tensor, params):
     factors[l] = np.reshape(np.transpose(factors[l]), [rank, input_shape[l], output_shape[l]])
 
   return factors
+
+def recompose_dense_cp(factors, params):
+    input_shape, output_shape, rank = params["input_shape"], params["output_shape"], params["rank"]
+    order = len(input_shape)
+
+    tensors = []
+    for f in factors:
+        newshape = [rank, np.prod(f.shape[1:])]
+        tensors.append(np.transpose(np.reshape(f, newshape)))
+
+    tensor = tl.kruskal_to_tensor(tensors)
+    tensor = np.reshape(tensor, input_shape + output_shape)
+    axes = [val for pair in zip(range(order), range(order, 2*order)) for val in pair]
+    axes[1:-1] = axes[1:-1][::-1]
+    tensor = np.transpose(tensor, axes = axes)
+    tensor = np.reshape(tensor, (np.prod(input_shape), np.prod(output_shape)))
+
+    return tensor
 
 def load_params_dense_cp(sess, reference, tensorized, use_bias, params):
   tensor = reference["kernel"]
@@ -515,18 +548,3 @@ def load_params_conv2d_rtt(sess, reference, tensorized, use_bias, params):
 
   if use_bias:
     sess.run(tensorized["bias"].assign(reference["bias"]))
-
-def recompose_kernel_cp(K0, K1, K2):
-
-    rank = K0.shape[3]
-    channels = K0.shape[2]
-    ksz = K1.shape[0]
-
-    H0 = np.reshape(K0, (channels, rank))
-    H1 = np.reshape(K1, (ksz * ksz, rank))
-    H2 = np.reshape(K2, (rank, channels)).transpose([1,0])
-
-    K = tl.kruskal_to_tensor( [H0, H1, H2] )
-    K = np.reshape(K, (channels, ksz, ksz, channels))
-    K = np.moveaxis(K, 0, 2)
-    return K

@@ -14,6 +14,7 @@ DEFAULT_USE_BIAS = False
 # default settings for tensorization method
 DEFAULT_METHOD = "normal"
 DEFAULT_COMPRESSION_RATE = 0.1
+DEFAULT_FACTORIZATION_BASE = 8
 
 
 # Part 0: Auxilary functions
@@ -144,19 +145,19 @@ def generate_params_conv2d_tensor(input_filters, output_filters, kernel_size,
 
 # Wrapper function for all dense layers
 def dense_tensor(inputs, output_units, use_bias = DEFAULT_USE_BIAS, return_info = DEFAULT_RETURN_INFO,
-  method = DEFAULT_METHOD, rate = DEFAULT_COMPRESSION_RATE):
+  method = DEFAULT_METHOD, rate = DEFAULT_COMPRESSION_RATE, verbose=False):
 
   options = {"normal": dense, "cp": dense_cp, "tk": dense_tk, "tt": dense_tt}
 
   assert method in options, "The method is not currently supported."
   dense_func = options[method]
 
-  input_units = inputs.shape.as_list()[-1]
+  input_units = inputs.shape[-1]
 
   params = generate_params_dense_tensor(input_units, output_units, method = method, rate = rate)
   kernels = generate_kernels_dense_tensor(input_units, output_units, use_bias = use_bias, method = method, params = params)
 
-  outputs = dense_func(inputs, kernels, use_bias = use_bias)
+  outputs = dense_func(inputs, kernels, use_bias = use_bias, verbose=verbose)
   return outputs if not return_info else outputs, params, kernels
 
 
@@ -426,7 +427,7 @@ def generate_params_dense(input_units, output_units, rate = 1):
 
 
 # Parafac-dense layer
-def dense_cp(inputs, kernels, use_bias = False):
+def dense_cp(inputs, kernels, use_bias = False, verbose=False):
   order = len(kernels) - use_bias
 
   # Extract parameters from the kernels
@@ -437,19 +438,33 @@ def dense_cp(inputs, kernels, use_bias = False):
     if l: assert(shape[0] == rank), "The 1st-dimension of the kernels should match."
     rank, input_shape[l], output_shape[l] = shape
 
-  #print(colored((rank, input_shape, output_shape), "cyan"))
+  if verbose:
+    print(colored((order, input_shape, output_shape, rank), "cyan"))
+    print("U", colored((inputs.shape), "cyan"))
   # (1) contract with the first kernel
   tensor = tf.reshape(inputs, [-1] + input_shape)
+  if verbose:
+    print("Ur", colored((tensor.shape), "cyan"))
   tensor = tf.tensordot(tensor, kernels["kernel_0"], axes = [[1], [1]])
+  if verbose:
+    print("Ur x_1 K0", colored((tensor.shape), "cyan"))
   tensor = tf.transpose(tensor, perm = [order] + list(range(order)) + [order + 1])
+  if verbose:
+    print("U0", colored((tensor.shape), "cyan"))
 
   # (2) partial contract with the remaining kernels
   contract = lambda var: (tf.tensordot(var[0], var[1], axes = [[1], [0]]), 0)
   for l in range(1, order):
     tensor, _ = tf.map_fn(contract, (tensor, kernels["kernel_" + str(l)]))
+  if verbose:
+    print("U1 = U0 x_1_0 K1", colored((tensor.shape), "cyan"))
   tensor = tf.reduce_sum(tensor, axis = 0)
+  if verbose:
+    print("U2 = Sum(U1)", colored((tensor.shape), "cyan"))
 
   outputs = tf.reshape(tensor, [-1, np.prod(output_shape)])
+  if verbose:
+    print("V", colored((outputs.shape), "cyan"))
   if use_bias: outputs = outputs + kernels["bias"]
   return outputs
 

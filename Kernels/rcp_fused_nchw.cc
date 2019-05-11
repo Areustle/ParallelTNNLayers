@@ -43,15 +43,15 @@ class Conv2dRcpFusedOp : public OpKernel {
     const Tensor& tenK1 = context->input(2);
     const Tensor& tenK2 = context->input(3);
     OP_REQUIRES(context, tenU.shape().dims()==5,
-        errors::InvalidArgument("Conv2dCpFusedOp expects Input image to be a rank 4 Tensor NCWH"));
+        errors::InvalidArgument("Conv2dCpFusedOp expects Input image to be a rank 5 Tensor NCWH"));
     OP_REQUIRES(context, tenK0.shape().dims()==3,
-        errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 0 to be a rank 2 Tensor [KchIN, rank]"));
+        errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 0 to be a rank 3 Tensor [KchIN, rank]"));
     OP_REQUIRES(context, tenK1.shape().dims()==3,
         errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 1 to be a rank 3 Tensor [HWR]"));
     OP_REQUIRES(context, tenK2.shape().dims()==3,
-        errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 2 to be a rank 2 Tensor [rank, KchoOUT]"));
+        errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 2 to be a rank 3 Tensor [rank, KchoOUT]"));
 
-    OP_REQUIRES(context, tenU.shape().dim_size(0)==8,
+    OP_REQUIRES(context, tenU.shape().dim_size(0)==1,
         errors::InvalidArgument("input[0] != 8"));
     OP_REQUIRES(context, tenU.shape().dim_size(1)==4,
         errors::InvalidArgument("input[1] != 16"));

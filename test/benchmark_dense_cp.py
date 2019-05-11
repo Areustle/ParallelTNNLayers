@@ -8,10 +8,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 padding = "SAME"
 data_format = 'NCHW'
-U  = np.random.uniform(size=(8,16,32,32)).astype(np.float32)
-K0 = np.random.uniform(size=(1,1,16,6)).astype(np.float32)
-K1 = np.random.uniform(size=(3,3,6,1)).astype(np.float32)
-K2 = np.random.uniform(size=(1,1,6,16)).astype(np.float32)
+U = np.random.uniform(size=(1,16,32,32)).astype(np.float32)
+M = np.random.uniform(size=(512,128)).astype(np.float32)
 
 Kcp = utils.recompose_kernel_cp(K0, K1, K2)
 
