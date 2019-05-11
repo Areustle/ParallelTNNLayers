@@ -415,7 +415,6 @@ def factorize_conv2d_rcp(tensor, params):
     "The product of input shape should match the 3rd-dimension of the tensor."
   assert shape[3] == np.prod(output_shape), \
     "The product of output shape should match the 4th-dimension of the tensor."
-
   if shape[0] == 1:
     tensor = np.reshape(tensor, input_shape + output_shape)
     tensor = np.transpose(tensor, axes = [val for pair in zip(range(order), range(order, 2*order)) for val in pair])
@@ -436,6 +435,25 @@ def factorize_conv2d_rcp(tensor, params):
     dense_factors[l] = np.reshape(np.transpose(dense_factors[l]), [rank, input_shape[l], output_shape[l]])
 
   return dense_factors, conv_factor
+
+def recompose_conv2d_rcp(dense_factors, conv_factor, params):
+    input_shape, output_shape, rank = params["input_shape"], params["output_shape"], params["rank"]
+    order = len(input_shape)
+    for l in range(order):
+        dense_factors[l] = np.transpose(np.reshape(dense_factors[l], [rank, input_shape[l] * output_shape[l]]))
+
+    conv_factor = np.transpose(np.reshape(conv_factor, [rank, conv_factor.shape[0] * conv_factor.shape[1]]))
+    factors = [conv_factor] + dense_factors
+
+    tensor = tl.kruskal_to_tensor(factors)
+    newshape = [tensor.shape[0]] + input_shape + output_shape
+    tensor = np.reshape(tensor, newshape )
+    axes = [0] + [val for pair in zip(range(1, 1+order), range(1+order, 1+2*order)) for val in pair]
+    tensor = np.transpose(tensor, axes=axes)
+    newshape = [int(np.sqrt(tensor.shape[0])), int(np.sqrt(tensor.shape[0])), np.prod(input_shape) , np.prod(output_shape)]
+    tensor = np.reshape(tensor, newshape)
+
+    return tensor
 
 def load_params_conv2d_rcp(sess, reference, tensorized, use_bias, params):
   dense_factors, conv_factor = factorize_conv2d_rcp(reference["kernel"], params)

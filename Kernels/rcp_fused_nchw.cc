@@ -43,31 +43,31 @@ class Conv2dRcpFusedOp : public OpKernel {
     const Tensor& tenK1 = context->input(2);
     const Tensor& tenK2 = context->input(3);
     OP_REQUIRES(context, tenU.shape().dims()==5,
-        errors::InvalidArgument("Conv2dCpFusedOp expects Input image to be a rank 5 Tensor NCWH"));
+        errors::InvalidArgument("Conv2dRcpFusedOp expects Input image to be a rank 5 Tensor NCWH"));
     OP_REQUIRES(context, tenK0.shape().dims()==3,
-        errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 0 to be a rank 3 Tensor [KchIN, rank]"));
+        errors::InvalidArgument("Conv2dRcpFusedOp expects Kernel 0 to be a rank 3 Tensor [KchIN, rank]"));
     OP_REQUIRES(context, tenK1.shape().dims()==3,
-        errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 1 to be a rank 3 Tensor [HWR]"));
+        errors::InvalidArgument("Conv2dRcpFusedOp expects Kernel 1 to be a rank 3 Tensor [HWR]"));
     OP_REQUIRES(context, tenK2.shape().dims()==3,
-        errors::InvalidArgument("Conv2dCpFusedOp expects Kernel 2 to be a rank 3 Tensor [rank, KchoOUT]"));
+        errors::InvalidArgument("Conv2dRcpFusedOp expects Kernel 2 to be a rank 3 Tensor [rank, KchoOUT]"));
 
     OP_REQUIRES(context, tenU.shape().dim_size(0)==1,
-        errors::InvalidArgument("input[0] != 8"));
+        errors::InvalidArgument("input[0] != 1"));
     OP_REQUIRES(context, tenU.shape().dim_size(1)==4,
-        errors::InvalidArgument("input[1] != 16"));
+        errors::InvalidArgument("input[1] != 4"));
     OP_REQUIRES(context, tenU.shape().dim_size(2)==4,
-        errors::InvalidArgument("input[2] != 32"));
+        errors::InvalidArgument("input[2] != 4"));
     OP_REQUIRES(context, tenU.shape().dim_size(3)==32,
         errors::InvalidArgument("input[3] != 32"));
     OP_REQUIRES(context, tenU.shape().dim_size(4)==32,
         errors::InvalidArgument("input[3] != 32"));
 
     OP_REQUIRES(context, tenK0.shape().dim_size(0)==4,
-        errors::InvalidArgument("kernel0[0] != 16"));
+        errors::InvalidArgument("kernel0[0] != 4"));
     OP_REQUIRES(context, tenK0.shape().dim_size(1)==4,
-        errors::InvalidArgument("kernel0[1] != 6"));
-    OP_REQUIRES(context, tenK0.shape().dim_size(1)==11,
-        errors::InvalidArgument("kernel0[1] != 6"));
+        errors::InvalidArgument("kernel0[1] != 4"));
+    OP_REQUIRES(context, tenK0.shape().dim_size(2)==11,
+        errors::InvalidArgument("kernel0[2] != 11"));
 
     OP_REQUIRES(context, tenK1.shape().dim_size(0)==4,
         errors::InvalidArgument("kernel1[0] != 4"));
@@ -80,7 +80,7 @@ class Conv2dRcpFusedOp : public OpKernel {
         errors::InvalidArgument("kernelc[0] != 3"));
     OP_REQUIRES(context, tenK2.shape().dim_size(1)==3,
         errors::InvalidArgument("kernelc[1] != 3"));
-    OP_REQUIRES(context, tenK2.shape().dim_size(1)==11,
+    OP_REQUIRES(context, tenK2.shape().dim_size(2)==11,
         errors::InvalidArgument("kernelc[2] != 11"));
 
 

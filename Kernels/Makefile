@@ -20,10 +20,4 @@ TF_LFLAGS := $(shell python -c 'import tensorflow as tf; print(" ".join(tf.sysco
 all : cp_fused_nchw.so \
 	rcp_fused_nchw.so
 
-
-
-.PHONY: clean
-clean:
-	rm *.so *.o
-
 .DEFAULT_GOAL := all
