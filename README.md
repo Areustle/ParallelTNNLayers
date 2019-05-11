@@ -4,8 +4,11 @@ Parallel implementations of decomposed tensorial neural network layers
 In the \sequences, you will find an updated version of netcon which can handle generalized tensor operations.
 The formatting for bond names is very sensitive, please read below:
 
+        **FORMATTING**
+        The bond/leg lists require sensitive formatting. Please read below. 
+        
         -Leg names must be of type string. Use *lower-case* letter-number combinations, 
-        EXCEPT in the case of convolution (see below):
+        EXCEPT in the case of convolution and partial outer product (see below):
         
         -Bond legs should be in the same order as the dimensions listed by tf.get_shape()
         
@@ -14,14 +17,14 @@ The formatting for bond names is very sensitive, please read below:
         
         -For convolution, append * to the end of leg name, use same leg name, but with different casing.
         We assume here that convolution between i & j pads the new leg to dimension length of max(i,j).
-        USE LOWER CASE FOR THE LEG WITH HIGHER DIMENSION
+        USE LOWER CASE FOR THE LEG WITH HIGHER DIMENSION.
         
-        Example: [a,b*,c] & [d,B*,e] will convolve between the b*-B* indices. 
+        Example: [a,b*,c] & [d,B*,e] will convolve between the b*/B* indices. 
         Please note that this assumes the convolution for a particular leg is only between two tensors.
         I.e., [a,b*,c] & [d,B*,e] & [f, b*, h] is NOT valid.
        
-       -For partial outer product, append + to end of leg names.
-        Example: [n,p+,q] & [r,p+,s] will perform a partial outer product between p+ indices.
+       -For partial outer product, append + to end of leg names, with upper and lower casing.
+        Example: [n,p+,q] & [r,P+,s] will perform a partial outer product between p+/P+ indices.
        
        -For contraction, just leave the leg names the same.
         Example" [i0,j3,k] & [i0,l2,m] will contract between the i indices. 
@@ -33,8 +36,8 @@ The formatting for bond names is very sensitive, please read below:
         We would express the bonds as follows:
         A_bonds = [j,q*]
         B_bonds = [j,l,m]
-        C_bonds = [Q, k+]
-        D_bonds = [n, k+, p]
+        C_bonds = [Q*, k+]
+        D_bonds = [n, K+, p]
            
             q   Q
           A---^---C
@@ -44,3 +47,5 @@ The formatting for bond names is very sensitive, please read below:
           B       D
          / \     / \ 
         l   m   n   p
+        
+
