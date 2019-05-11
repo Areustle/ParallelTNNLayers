@@ -80,7 +80,7 @@ class Conv2dCpFusedOp : public OpKernel {
         errors::InvalidArgument("kernel2[1] != 16"));
 
 
-    // Create u0 output tensor
+    //  Create u0 output tensor
     Tensor* v_tensor = nullptr;
     auto v_outshape = tenU.shape();
     OP_REQUIRES_OK(context, context->allocate_output(0, v_outshape, &v_tensor));

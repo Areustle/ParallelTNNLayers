@@ -94,21 +94,32 @@ def decomp_tt_conv2d_nhwc(K, rate, verbose=True):
     return kernels
 
 
-def decomp_rcp_conv2d_nhwc(K, rate, verbose=True):
+def decomp_rcp_conv2d_nhwc(U, K, rate, verbose=True):
     kernel_size, kernel_size, input_filters, output_filters = K.shape
 
     params = layers.generate_params_conv2d_rcp(input_filters, output_filters, kernel_size, rate)
     dense_factors, conv_factor = utils.factorize_conv2d_rcp(K, params)
 
-    if verbose:
-        print("\nconv2d_rcp decomp kernel sizes:")
-        print(params)
-        print("K:  {}".format(K.shape))
-        for i, factor in enumerate(dense_factors):
-            print(" K{}: {}".format(i, factor.shape))
-        print(" Conv_K: {}".format(conv_factor.shape))
 
-    return dense_factors, conv_factor
+    kernels = {
+            "kernel_0" : dense_factors[0],
+            "kernel_1" : dense_factors[1],
+          }
+
+    kernels["kernel_conv"] = conv_factor
+
+    print(type(kernels["kernel_0"]))
+
+    layers.conv2d_rcp(U, kernels, data_format="NCHW")
+    # if verbose:
+    #     print("\nconv2d_rcp decomp kernel sizes:")
+    #     print(params)
+    #     print("K:  {}".format(K.shape))
+    #     for i, factor in enumerate(dense_factors):
+    #         print(" K{}: {}".format(i, factor.shape))
+    #     print(" Conv_K: {}".format(conv_factor.shape))
+
+    # return dense_factors, conv_factor
 
 def decomp_rtk_conv2d_nhwc(K, rate, verbose=True):
     kernel_size, kernel_size, input_filters, output_filters = K.shape
@@ -216,11 +227,11 @@ if __name__ == "__main__":
     # decomp_tk_conv2d_nhwc(U, K, 0.1)
     # decomp_tt_conv2d_nhwc(U, K, 0.1)
 
-    # decomp_rcp_conv2d_nhwc(U, K, 0.1)
+    decomp_rcp_conv2d_nhwc(U, K, 0.1)
     # decomp_rtk_conv2d_nhwc(U, K, 0.1)
     # decomp_rtt_conv2d_nhwc(U, K, 0.1)
 
     M = np.random.normal(0., 1., [128,128]).astype(np.float32)
     # decomp_cp_dense_nhwc(M, 0.1)
-    decomp_tk_dense_nhwc(U, M, 0.1)
+    # decomp_tk_dense_nhwc(U, M, 0.1)
 
