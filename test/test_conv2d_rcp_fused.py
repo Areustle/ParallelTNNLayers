@@ -2,38 +2,47 @@ import tensorflow as tf
 import numpy as np
 import os
 import layers
+import utils
+import tensorly as tl
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
+min_iters = 1024
 padding = "SAME"
 data_format = 'NCHW'
-U  = np.random.uniform(size=(8,16,32,32)).astype(np.float32)
-K0 = np.random.uniform(size=(1,1,16,6)).astype(np.float32)
-K1 = np.random.uniform(size=(3,3,6,1)).astype(np.float32)
-K2 = np.random.uniform(size=(1,1,6,16)).astype(np.float32)
+rate = 0.1
 
-Kcp = utils.recompose_kernel_rcp(K0, K1, K2)
+U_rcp = np.random.uniform(size=(1,4,4,32,32)).astype(np.float32)
+U_norm = np.reshape(U_rcp, (1,16,32,32))
+K = np.random.uniform(size=(3,3,16,16)).astype(np.float32)
 
-normal_kernel = {"kernel" : Kcp}
-cp_kernels = { "kernel_0" : K0, "kernel_1" : K1, "kernel_2" : K2 }
+kernel_size, kernel_size, input_filters, output_filters = K.shape
+params = layers.generate_params_conv2d_rcp(input_filters, output_filters, kernel_size, rate)
+dense_factors, conv_factor = utils.factorize_conv2d_rcp(K, params)
 
+# kernels = { "kernel_0" : dense_factors[0], "kernel_1" : dense_factors[1], }
+# kernels["kernel_conv"] = conv_factor
+
+# for k, v in kernels.items():
+#     print(k, v.shape)
+
+K0 = dense_factors[0].transpose((1,2,0))
+K1 = dense_factors[1].transpose((1,2,0))
+KC = conv_factor
+
+# K_recomp = utils.recompose_conv2d_rcp(dense_factors, conv_factor, params)
+
+normal_kernel = {"kernel" : K}
 
 class CPOpTest(tf.test.TestCase):
-    def testConv2dNormalNchw(self):
-        with self.session(force_gpu=True) as sess:
-            V_normal = layers.conv2d(U, normal_kernel, data_format=data_format)
-            V_orig = layers.conv2d_cp(U, cp_kernels, data_format=data_format)
-            self.assertAllClose(V_normal.eval(), V_orig.eval(), rtol=1e-03, atol=1e-03)
-
     def testConv2dCpNchw(self):
-        cp_op_module = tf.load_op_library('../Kernels/cp_fused_nchw.so')
+        cp_op_module = tf.load_op_library('../Kernels/rcp_fused_nchw.so')
         with self.session(force_gpu=True) as sess:
-            V_normal = layers.conv2d(U, normal_kernel, data_format=data_format)
-            V_custom = cp_op_module.conv2d_cp_fused_nchw(U,
-                    K0.reshape(16,6),
-                    K1.reshape(3,3,6),
-                    K2.reshape(6,16))
-            self.assertAllClose(V_normal.eval(), V_custom.eval(), rtol=1e-03, atol=1e-03)
+            V_normal = layers.conv2d(U_norm, normal_kernel, data_format=data_format)
+            V_normal = tf.reshape(V_normal, (1, 4, 4, 32, 32))
+            V_custom = cp_op_module.conv2d_rcp_fused_nchw(U_rcp, K0, K1, KC)
+            self.assertAllClose(V_normal.eval(),
+                    V_custom.eval(), rtol=1e-03, atol=1e-03)
 
 
 if __name__ == "__main__":
