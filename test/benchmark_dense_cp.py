@@ -18,30 +18,12 @@ K1s, T1, rank1 = kshape1 = (16, 4, 137)
 K2s, T2, rank2 = kshape2 = (16, 4, 137)
 rank = rank0
 
-
-# u_np  = np.random.uniform(size=inshape).astype(np.float32)
-# k0_np = np.random.uniform(size=kshape0).astype(np.float32)
-# k1_np = np.random.uniform(size=kshape1).astype(np.float32)
-# k2_np = np.random.uniform(size=kshape2).astype(np.float32)
-
 U = tf.random.uniform(inshape)
 K0 = tf.random.uniform(kshape0)
 K1 = tf.random.uniform(kshape1)
 K2 = tf.random.uniform(kshape2)
 
 M = tf.random.uniform((S0*S1*S2 , T0*T1*T2))
-
-# m_np = np.einsum('axr,byr,czr->abcxyz', k0_np, k1_np, k2_np)
-# m_np = np.reshape(m_np, (S0*S1*S2 , T0*T1*T2))
-
-# v_np = np.einsum('ij,ni->nj', m_np, u_np.reshape(N, S0*S1*S2))
-# v_np = np.reshape(v_np, (N, T0,T1,T2))
-
-# w_np = np.einsum('nijk,ixr,jyr,kzr->nxyz', u_np, k0_np, k1_np, k2_np)
-
-# print(np.allclose(w_np, v_np))
-# v_np = np.einsum('nijk,ixr,jyr,kzr->nxyz', u_np, k0_np, k1_np, k2_np)
-
 
 if __name__ == "__main__":
 
