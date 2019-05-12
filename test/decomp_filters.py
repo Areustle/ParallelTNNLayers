@@ -87,15 +87,15 @@ def decomp_rcp_conv2d_nhwc(U, K, rate, verbose=True):
     params = layers.generate_params_conv2d_rcp(input_filters, output_filters, kernel_size, rate)
     dense_factors, conv_factor = utils.factorize_conv2d_rcp(K, params)
 
+    print(params)
 
-    kernels = {
-            "kernel_0" : dense_factors[0],
-            "kernel_1" : dense_factors[1],
-          }
-
+    kernels = { "kernel_0" : dense_factors[0], "kernel_1" : dense_factors[1], }
     kernels["kernel_conv"] = conv_factor
 
     print(type(kernels["kernel_0"]))
+
+    for k, v in kernels.items():
+        print(k, v.shape)
 
     layers.conv2d_rcp(U, kernels, data_format="NCHW")
 
@@ -135,16 +135,18 @@ def decomp_rtt_conv2d_nhwc(K, rate, verbose=True):
 
 def decomp_cp_dense_nhwc(U, M, rate, verbose=True):
     xdim, ydim = M.shape
-    outputs, params, kernels = layers.dense_tensor(U, xdim, method='cp', rate=rate, verbose=verbose)
+
+    params = layers.generate_params_dense_cp(xdim, ydim, rate)
+    factors = utils.factorize_dense_cp(M, params)
 
     if verbose:
         print("CP dense decomp matrix sizes:")
         print(params)
         print("M:  {}".format(M.shape))
-        for k, v in kernels.items():
+        for k, v in enumerate(factors):
             print(k, v.shape)
 
-    return outputs, params, kernels
+    return params
 
 def decomp_tk_dense_nhwc(U, M, rate, verbose=True):
     xdim, ydim = M.shape
@@ -202,11 +204,11 @@ if __name__ == "__main__":
     # decomp_tk_conv2d_nhwc(U, K, 0.1)
     # decomp_tt_conv2d_nhwc(U, K, 0.1)
 
-    # decomp_rcp_conv2d_nhwc(U, K, 0.1)
+    decomp_rcp_conv2d_nhwc(U, K, 0.1)
     # decomp_rtk_conv2d_nhwc(U, K, 0.1)
     # decomp_rtt_conv2d_nhwc(U, K, 0.1)
 
-    M = np.random.normal(0., 1., [128,512]).astype(np.float32)
+    M = np.random.normal(0., 1., [4096,64]).astype(np.float32)
     decomp_cp_dense_nhwc(U, M, 0.1)
     # decomp_tk_dense_nhwc(U, M, 0.1)
 

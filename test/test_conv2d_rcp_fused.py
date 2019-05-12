@@ -14,35 +14,41 @@ rate = 0.1
 
 U_rcp = np.random.uniform(size=(1,4,4,32,32)).astype(np.float32)
 U_norm = np.reshape(U_rcp, (1,16,32,32))
-K = np.random.uniform(size=(3,3,16,16)).astype(np.float32)
+K0 = np.random.uniform(size=(4,4,11)).astype(np.float32)
+K1 = np.random.uniform(size=(4,4,11)).astype(np.float32)
+K2 = np.random.uniform(size=(3,3,11)).astype(np.float32)
 
-kernel_size, kernel_size, input_filters, output_filters = K.shape
-params = layers.generate_params_conv2d_rcp(input_filters, output_filters, kernel_size, rate)
-dense_factors, conv_factor = utils.factorize_conv2d_rcp(K, params)
+Kcp = np.einsum('abr,ijr,hwr->hwabij', K0, K1, K2).reshape(3,3,16,16)
+normal_kernel = {"kernel" : Kcp}
 
-# kernels = { "kernel_0" : dense_factors[0], "kernel_1" : dense_factors[1], }
-# kernels["kernel_conv"] = conv_factor
-
-# for k, v in kernels.items():
-#     print(k, v.shape)
-
-K0 = dense_factors[0].transpose((1,2,0))
-K1 = dense_factors[1].transpose((1,2,0))
-KC = conv_factor
-
-# K_recomp = utils.recompose_conv2d_rcp(dense_factors, conv_factor, params)
-
-normal_kernel = {"kernel" : K}
 
 class CPOpTest(tf.test.TestCase):
     def testConv2dCpNchw(self):
         cp_op_module = tf.load_op_library('../Kernels/rcp_fused_nchw.so')
         with self.session(force_gpu=True) as sess:
+
+
             V_normal = layers.conv2d(U_norm, normal_kernel, data_format=data_format)
-            V_normal = tf.reshape(V_normal, (1, 4, 4, 32, 32))
-            V_custom = cp_op_module.conv2d_rcp_fused_nchw(U_rcp, K0, K1, KC)
+            V_normal = tf.reshape(V_normal, (1, 16, 32, 32))
+
+
+
+            V_einsum = tf.einsum('nabxy,atr,bsr->ntsrxy',
+                    tf.convert_to_tensor(U_rcp),
+                    tf.convert_to_tensor(K0),
+                    tf.convert_to_tensor(K1))
+            V_einsum = tf.reshape(V_einsum, (1,16,11,32,32))
+            V_einsum = tf.transpose(V_einsum, (0,2,1,3,4))
+            V_einsum = tf.nn.conv3d(V_einsum, K2.reshape(1,3,3,11,1),
+                    strides=[1,1,1,1,1], padding=padding, data_format='NCDHW')
+            V_einsum = tf.reshape(V_einsum, (1,16,32,32))
+
+
             self.assertAllClose(V_normal.eval(),
-                    V_custom.eval(), rtol=1e-03, atol=1e-03)
+                    V_einsum.eval(), rtol=1e-02, atol=1e-02)
+
+
+            # V_custom = cp_op_module.conv2d_rcp_fused_nchw(U_rcp, K0, K1, KC)
 
 
 if __name__ == "__main__":

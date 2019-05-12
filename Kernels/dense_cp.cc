@@ -43,13 +43,13 @@ class DenseCpOp : public OpKernel {
     const Tensor& tenK1 = context->input(2);
     const Tensor& tenK2 = context->input(3);
     OP_REQUIRES(context, tenU.shape().dims()==4,
-        errors::InvalidArgument("DenseCpOp expects Input image to be a rank 5 Tensor NCWH"));
+        errors::InvalidArgument("DenseCpOp expects Input to be a rank 4 Tensor "));
     OP_REQUIRES(context, tenK0.shape().dims()==3,
-        errors::InvalidArgument("DenseCpOp expects Kernel 0 to be a rank 3 Tensor [KchIN, rank]"));
+        errors::InvalidArgument("DenseCpOp expects Kernel 0 to be a rank 3 Tensor "));
     OP_REQUIRES(context, tenK1.shape().dims()==3,
-        errors::InvalidArgument("DenseCpOp expects Kernel 1 to be a rank 3 Tensor [HWR]"));
+        errors::InvalidArgument("DenseCpOp expects Kernel 1 to be a rank 3 Tensor "));
     OP_REQUIRES(context, tenK2.shape().dims()==3,
-        errors::InvalidArgument("DenseCpOp expects Kernel 2 to be a rank 3 Tensor [rank, KchoOUT]"));
+        errors::InvalidArgument("DenseCpOp expects Kernel 2 to be a rank 3 Tensor "));
 
     OP_REQUIRES(context, tenU.shape().dim_size(0)==1,
         errors::InvalidArgument("input[0] != 1"));
@@ -64,22 +64,22 @@ class DenseCpOp : public OpKernel {
         errors::InvalidArgument("kernel0[0] != 16"));
     OP_REQUIRES(context, tenK0.shape().dim_size(1)==4,
         errors::InvalidArgument("kernel0[1] != 4"));
-    OP_REQUIRES(context, tenK0.shape().dim_size(2)==86,
-        errors::InvalidArgument("kernel0[2] != 86"));
+    OP_REQUIRES(context, tenK0.shape().dim_size(2)==137,
+        errors::InvalidArgument("kernel0[2] != 137"));
 
     OP_REQUIRES(context, tenK1.shape().dim_size(0)==16,
         errors::InvalidArgument("kernel1[0] != 16"));
     OP_REQUIRES(context, tenK1.shape().dim_size(1)==4,
         errors::InvalidArgument("kernel1[1] != 4"));
-    OP_REQUIRES(context, tenK1.shape().dim_size(2)==86,
-        errors::InvalidArgument("kernel1[2] != 86"));
+    OP_REQUIRES(context, tenK1.shape().dim_size(2)==137,
+        errors::InvalidArgument("kernel1[2] != 137"));
 
     OP_REQUIRES(context, tenK2.shape().dim_size(0)==16,
         errors::InvalidArgument("kernel2[0] != 16"));
     OP_REQUIRES(context, tenK2.shape().dim_size(1)==4,
         errors::InvalidArgument("kernel2[1] != 4"));
-    OP_REQUIRES(context, tenK2.shape().dim_size(2)==86,
-        errors::InvalidArgument("kernel2[2] != 86"));
+    OP_REQUIRES(context, tenK2.shape().dim_size(2)==137,
+        errors::InvalidArgument("kernel2[2] != 137"));
 
 
     //  Create u0 output tensor

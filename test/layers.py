@@ -14,7 +14,7 @@ DEFAULT_USE_BIAS = False
 # default settings for tensorization method
 DEFAULT_METHOD = "normal"
 DEFAULT_COMPRESSION_RATE = 0.1
-DEFAULT_FACTORIZATION_BASE = 8
+DEFAULT_FACTORIZATION_BASE = 16
 
 
 # Part 0: Auxilary functions
