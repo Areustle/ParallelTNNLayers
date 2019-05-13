@@ -37,14 +37,28 @@ if __name__ == "__main__":
 
     with tf.Session() as sess:
         with tf.device('/device:GPU:0'):
+
             V_normal = layers.conv2d(U, normal_kernel, data_format=data_format)
+            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_op', min_iters=min_iters)
+
             V_orig = layers.conv2d_cp(U, cp_kernels, data_format=data_format)
+            CPbench.run_op_benchmark(sess, V_orig, name='TF_cp_op', min_iters=min_iters)
+
+
             V_fused = cp_op_module.conv2d_cp_fused_nchw(U,
                     K0.reshape(16,6),
                     K1.reshape(3,3,6),
                     K2.reshape(6,16))
-
-            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_op', min_iters=min_iters)
-            CPbench.run_op_benchmark(sess, V_orig, name='TF_cp_op', min_iters=min_iters)
             CPbench.run_op_benchmark(sess, V_fused, name='custom_fused_op', min_iters=min_iters)
+
+
+            tU = tf.convert_to_tensor(U)
+            tK0 = tf.convert_to_tensor(K0)
+            tK1 = tf.convert_to_tensor(K1)
+            tK2 = tf.convert_to_tensor(K2)
+
+            V_seq_k3 = tf.einsum('hwr,rc->hwrc', tK1, tK2)
+            V_seq_u0 = tf.einsum('nchw,cr->nrhw', tU, tK0)
+            V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME", data_format=data_format)
+            CPbench.run_op_benchmark(sess, V_seq, name='sequencer_op', min_iters=min_iters)
 

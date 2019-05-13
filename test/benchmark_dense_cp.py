@@ -4,7 +4,7 @@ import os
 import layers
 import utils
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # CP dense decomp matrix sizes:
 # {'input_shape': [16, 16, 16], 'output_shape': [4, 4, 4], 'rank': 137}
 # M:  (4096, 64)

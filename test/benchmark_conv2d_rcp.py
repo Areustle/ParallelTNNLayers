@@ -4,7 +4,7 @@ import os
 import layers
 import utils
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 min_iters = 1024
 stride = [1,1,1,1]
