@@ -61,4 +61,7 @@ if __name__ == "__main__":
             V_seq_u0 = tf.einsum('nchw,cr->nrhw', tU, tK0)
             V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME", data_format=data_format)
             CPbench.run_op_benchmark(sess, V_seq, name='sequencer_op', min_iters=min_iters)
+            # V_seq_k3 = tf.einsum('hwr,rc->hwrc', tK1, tK2)
+            # V_seq_u0 = tf.einsum('nchw,cr->nhwr', tU, tK0)
+            # V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME")
 
