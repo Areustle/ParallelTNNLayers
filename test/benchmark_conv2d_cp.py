@@ -44,7 +44,7 @@ if __name__ == "__main__":
                     K1.reshape(3,3,6),
                     K2.reshape(6,16))
 
-            CPbench.run_op_benchmark(sess, V_fused, name='fused_op', min_iters=min_iters)
             CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_op', min_iters=min_iters)
             CPbench.run_op_benchmark(sess, V_orig, name='TF_cp_op', min_iters=min_iters)
+            CPbench.run_op_benchmark(sess, V_fused, name='custom_fused_op', min_iters=min_iters)
 

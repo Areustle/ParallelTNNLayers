@@ -85,6 +85,9 @@ class DenseCpOp : public OpKernel {
     //  Create u0 output tensor
     Tensor* v_tensor = nullptr;
     auto v_outshape = tenU.shape();
+    v_outshape.set_dim(1, tenK0.shape().dim_size(1));
+    v_outshape.set_dim(2, tenK1.shape().dim_size(1));
+    v_outshape.set_dim(3, tenK2.shape().dim_size(1));
     OP_REQUIRES_OK(context, context->allocate_output(0, v_outshape, &v_tensor));
 
     auto input = tenU.flat<float>();

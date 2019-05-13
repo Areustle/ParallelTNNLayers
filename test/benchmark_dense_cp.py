@@ -32,19 +32,23 @@ if __name__ == "__main__":
 
     with tf.Session() as sess:
         with tf.device('/device:GPU:0'):
-            V_normal = tf.reshape(U, (N, S0*S1*S2))
-            # M_normal = tf.einsum('axr,byr,czr->abcxyz', K0, K1, K2)
-            # M_normal = tf.reshape(M_normal, (S0*S1*S2 , T0*T1*T2))
-            V_normal = tf.einsum('ij,ni->nj', M, V_normal)
-            V_normal = tf.reshape(V_normal, (N, T0,T1,T2))
+            V_gemm = tf.reshape(U, (N, S0*S1*S2))
+            V_gemm = tf.matmul(V_gemm, M)
+            # V_gemm = tf.einsum('ij,ni->nj', M, V_gemm)
+            V_gemm = tf.reshape(V_gemm, (N, T0,T1,T2))
+
+            M_rebuild = tf.einsum('axr,byr,czr->abcxyz', K0, K1, K2)
+            M_rebuild = tf.reshape(M_rebuild, (S0*S1*S2 , T0*T1*T2))
+            V_rebuild = tf.reshape(U, (N, S0*S1*S2))
+            V_rebuild = tf.einsum('ij,ni->nj', M_rebuild, V_rebuild)
+            V_rebuild = tf.reshape(V_rebuild, (N,T0,T1,T2))
 
             V_einsum = tf.einsum('nijk,ixr,jyr,kzr->nxyz', U, K0, K1, K2)
 
-            # V_orig = layers.d_cp(U, cp_kernels, data_format=data_format)
-            # V_custom = cp_op_module.conv2d_cp_fused_nchw(U, K0, K1, K2)
-            V_custom = cp_op_module.dense_cp(U, K0, K1, K2)
+            V_fused = cp_op_module.dense_cp(U, K0, K1, K2)
 
-            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_op', min_iters=1024)
-            CPbench.run_op_benchmark(sess, V_custom, name='custom_op', min_iters=1024)
+            CPbench.run_op_benchmark(sess, V_gemm, name='TF_GEMM_op', min_iters=1024)
+            CPbench.run_op_benchmark(sess, V_rebuild, name='TF_rebuild_op', min_iters=1024)
             CPbench.run_op_benchmark(sess, V_einsum, name='TF_einsum_op', min_iters=1024)
+            CPbench.run_op_benchmark(sess, V_fused, name='custom_fused_op', min_iters=1024)
 
