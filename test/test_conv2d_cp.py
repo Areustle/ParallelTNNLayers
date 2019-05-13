@@ -50,6 +50,20 @@ class CPOpTest(tf.test.TestCase):
             V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME", data_format=data_format)
             self.assertAllClose(V_normal.eval(), V_seq.eval(), rtol=1e-03, atol=1e-03)
 
+    def testConv2dSequencedNhwc(self):
+        with self.session(force_gpu=True) as sess:
+            V_normal = layers.conv2d(U, normal_kernel, data_format=data_format)
+            tU = tf.convert_to_tensor(U)
+            tK0 = tf.convert_to_tensor(K0)
+            tK1 = tf.convert_to_tensor(K1)
+            tK2 = tf.convert_to_tensor(K2)
+
+            V_seq_k3 = tf.einsum('hwr,rc->hwrc', tK1, tK2)
+            V_seq_u0 = tf.einsum('nchw,cr->nhwr', tU, tK0)
+            V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME")
+            V_seq = tf.transpose(V_seq, [0,3,1,2])
+            self.assertAllClose(V_normal.eval(), V_seq.eval(), rtol=1e-03, atol=1e-03)
+
 
 
 if __name__ == "__main__":

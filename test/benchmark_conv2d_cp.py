@@ -41,8 +41,11 @@ if __name__ == "__main__":
             V_normal = layers.conv2d(U, normal_kernel, data_format=data_format)
             CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_op', min_iters=min_iters)
 
+            V_normal_nhwc = layers.conv2d(tf.transpose(U, (0,2,3,1)), normal_kernel, data_format='NHWC')
+            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_nhwc_op', min_iters=min_iters)
+
             V_orig = layers.conv2d_cp(U, cp_kernels, data_format=data_format)
-            CPbench.run_op_benchmark(sess, V_orig, name='TF_cp_op', min_iters=min_iters)
+            CPbench.run_op_benchmark(sess, V_orig, name='TF_original_cp_op', min_iters=min_iters)
 
 
             V_fused = cp_op_module.conv2d_cp_fused_nchw(U,
@@ -61,7 +64,9 @@ if __name__ == "__main__":
             V_seq_u0 = tf.einsum('nchw,cr->nrhw', tU, tK0)
             V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME", data_format=data_format)
             CPbench.run_op_benchmark(sess, V_seq, name='sequencer_op', min_iters=min_iters)
-            # V_seq_k3 = tf.einsum('hwr,rc->hwrc', tK1, tK2)
-            # V_seq_u0 = tf.einsum('nchw,cr->nhwr', tU, tK0)
-            # V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME")
+
+            V_seq_k3_nhwc = tf.einsum('hwr,rc->hwrc', tK1, tK2)
+            V_seq_u0_nhwc = tf.einsum('nchw,cr->nhwr', tU, tK0)
+            V_seq_nhwc = tf.nn.conv2d(V_seq_u0_nhwc, V_seq_k3_nhwc, strides=[1,1,1,1], padding="SAME")
+            CPbench.run_op_benchmark(sess, V_seq_nhwc, name='sequencer_nhwc_op', min_iters=min_iters)
 
