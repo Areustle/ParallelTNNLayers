@@ -60,10 +60,10 @@ rcp_memory = {
 #     'The two args are the value and tick position'
 #     return '$%1.1fM' % (x * 1e-6)
 def microseconds(x, pos):
-    return '{:.2E}'.format(x * 1e3)
+    return '{:.2f}'.format(x * 1e3)
 
 def megabytes(x, pos):
-    return '{:.2E}'.format(x * 1e-6)
+    return '{:.2f}'.format(x * 1e-6)
 
 # formatter = FuncFormatter(millions)
 timeformatter = FuncFormatter(microseconds)
@@ -72,41 +72,37 @@ sizeformatter = FuncFormatter(megabytes)
 times = [cp_times, rcp_times, dense_cp_times]
 memory = [cp_memory, rcp_memory, dense_cp_memory]
 names = ['CP Conv2d', 'rCP Conv2d', 'CP Dense']
-plot_type = ['Absolute.', 'Relative to Normal Operation.']
+# plot_type = ['Absolute.', 'Relative to Normal Operation.']
 formats = [timeformatter, sizeformatter]
 # lists = [val for pair in zip(times, memory) for val in pair]
 
 for n, name in enumerate(names):
     for i, D in enumerate((times[n], memory[n])):
-        for pt, pt_name in enumerate(plot_type):
-            fig, ax = plt.subplots()
+        # for pt, pt_name in enumerate(plot_type):
+        fig, ax = plt.subplots()
 
-            vals_colors = list(D.values())
-            vals, colors = zip(*vals_colors)
-            if pt != 0:
-                tmp = [v / vals[0] for v in vals]
-                vals = tmp
-                pnm = 'relative Execution Time' if i==0 else 'relative Memory Used'
-            else:
-                pnm = 'Execution Time (s)' if i==0 else 'Memory Used (MB)'
-            #     ax.yaxis.set_major_formatter(formats[i])
+        pnm = 'Execution Time (s)' if i==0 else 'Memory Used (MB)'
 
+        vals_colors = list(D.values())
+        vals, colors = zip(*vals_colors)
 
-            for to_log in range(2):
+        ratios = [v / vals[0] for v in vals]
+        # print(ratios)
 
-                lgname = name
-                if to_log == 1:
-                    lgname = 'log ' + name
-                    plt.yscale("log")
+        for to_log in range(2):
+            lgname = ''
+            if to_log == 1:
+                lgname = 'log'
+                plt.yscale("log")
 
-                title = lgname + ' ' + pnm + ' ' + pt_name
-                plt.title(title)
-                plt.ylabel(lgname + ' ' + pnm)
-                plt.xlabel('Operations')
-                plt.bar(range(len(D)), vals, align='edge', color=colors)
-                plt.xticks(range(len(D)), list(D.keys()),  rotation=30)
-                for a,b in zip(range(len(D)), vals):
-                    plt.text(a, b, "{:.2E}".format(b))
-                plt.tight_layout()
-                # plt.show()
-                plt.savefig(title)
+            title = lgname+' '+name+' '+pnm
+            plt.title(title)
+            plt.ylabel(lgname + ' ' + pnm)
+            plt.xlabel('Operations')
+            plt.bar(range(len(D)), vals, align='edge', color=colors)
+            plt.xticks(range(len(D)), list(D.keys()),  rotation=30)
+            for j,v,r in zip(range(len(D)), vals, ratios):
+                plt.text(j, v, "{:.3f}x".format(r))
+            plt.tight_layout()
+            # plt.show()
+            plt.savefig(title, dpi=240)
