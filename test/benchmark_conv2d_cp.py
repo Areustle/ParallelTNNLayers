@@ -38,16 +38,11 @@ if __name__ == "__main__":
     with tf.Session() as sess:
         with tf.device('/device:GPU:0'):
 
-            V_normal = layers.conv2d(U, normal_kernel, data_format=data_format)
-            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_op', min_iters=min_iters)
-
-            V_normal_nhwc = layers.conv2d(tf.transpose(U, (0,2,3,1)), normal_kernel, data_format='NHWC')
-            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_nhwc_op', min_iters=min_iters)
-
+            # Original operation from Su et al.
             V_orig = layers.conv2d_cp(U, cp_kernels, data_format=data_format)
             CPbench.run_op_benchmark(sess, V_orig, name='TF_original_cp_op', min_iters=min_iters)
 
-
+            # Custom fused GPU implementation.
             V_fused = cp_op_module.conv2d_cp_fused_nchw(U,
                     K0.reshape(16,6),
                     K1.reshape(3,3,6),
@@ -55,6 +50,7 @@ if __name__ == "__main__":
             CPbench.run_op_benchmark(sess, V_fused, name='custom_fused_op', min_iters=min_iters)
 
 
+            # Sequencer operation
             tU = tf.convert_to_tensor(U)
             tK0 = tf.convert_to_tensor(K0)
             tK1 = tf.convert_to_tensor(K1)
@@ -63,10 +59,22 @@ if __name__ == "__main__":
             V_seq_k3 = tf.einsum('hwr,rc->hwrc', tK1, tK2)
             V_seq_u0 = tf.einsum('nchw,cr->nrhw', tU, tK0)
             V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME", data_format=data_format)
-            CPbench.run_op_benchmark(sess, V_seq, name='sequencer_op', min_iters=min_iters)
+            CPbench.run_op_benchmark(sess, V_seq, name='sequencer_nchw_op', min_iters=min_iters)
 
             V_seq_k3_nhwc = tf.einsum('hwr,rc->hwrc', tK1, tK2)
-            V_seq_u0_nhwc = tf.einsum('nchw,cr->nhwr', tU, tK0)
+            V_seq_u0_nhwc = tf.einsum('nhwc,cr->nhwr', tf.transpose(tU, (0,2,3,1)) , tK0)
             V_seq_nhwc = tf.nn.conv2d(V_seq_u0_nhwc, V_seq_k3_nhwc, strides=[1,1,1,1], padding="SAME")
             CPbench.run_op_benchmark(sess, V_seq_nhwc, name='sequencer_nhwc_op', min_iters=min_iters)
 
+            # Rebuild Op.
+            V_rebuild = tf.einsum('ir,hwr,ro->hwio', tK0, tK1, tK2)
+            V_rebuild = tf.nn.conv2d(tU, V_rebuild, strides=[1,1,1,1], padding="SAME", data_format=data_format)
+            CPbench.run_op_benchmark(sess, V_rebuild, name='TF_rebuild_nchw_op', min_iters=min_iters)
+
+            # The full-sized kernel operation nchw
+            V_normal = layers.conv2d(U, normal_kernel, data_format=data_format)
+            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_nchw_op', min_iters=min_iters)
+
+            # The full-sized kernel operation nhwc
+            V_normal_nhwc = layers.conv2d(tf.transpose(U, (0,2,3,1)), normal_kernel, data_format='NHWC')
+            CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_nhwc_op', min_iters=min_iters)

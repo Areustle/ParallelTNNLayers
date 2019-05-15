@@ -41,6 +41,7 @@ if __name__ == "__main__":
                     data_format=data_format)
             CPbench.run_op_benchmark(sess, V_normal, name='TF_normal_op', min_iters=min_iters)
 
+
             # Use einsum to recompose kernel first, then conv2d
             V_einsum = tf.einsum('axr,byr,hwr->hwabxy', K0, K1, KC)
             V_einsum = tf.reshape(V_einsum, K.shape)
@@ -48,9 +49,11 @@ if __name__ == "__main__":
                     strides=stride, padding=padding, data_format=data_format)
             CPbench.run_op_benchmark(sess, V_einsum, name='TF_einsum_recomp_op', min_iters=min_iters)
 
+
             # Fully fused operation
             V_fused = rcp_op_module.conv2d_rcp_fused_nchw(U, K0, K1, KC)
             CPbench.run_op_benchmark(sess, V_fused, name='fused_op', min_iters=min_iters)
+
 
             # Original paper from OP (or closest I could get working
             # (N,S0,S1,H,W) * (S0,T0,R)
@@ -68,6 +71,7 @@ if __name__ == "__main__":
                     data_format="NCDHW")
             V_orig = tf.reshape(V_orig, orig_shape)
             CPbench.run_op_benchmark(sess, V_orig, name='TF_orig_op', min_iters=min_iters)
+
 
             # Sequenced Op with Einsum Partial Outer Products NCHW
             U_seq = tf.random.uniform(inshape)

@@ -32,23 +32,41 @@ if __name__ == "__main__":
 
     with tf.Session() as sess:
         with tf.device('/device:GPU:0'):
+
+            # Normal op with gemm via matmul
             V_gemm = tf.reshape(U, (N, S0*S1*S2))
             V_gemm = tf.matmul(V_gemm, M)
-            # V_gemm = tf.einsum('ij,ni->nj', M, V_gemm)
             V_gemm = tf.reshape(V_gemm, (N, T0,T1,T2))
+            CPbench.run_op_benchmark(sess, V_gemm, name='TF_GEMM_op', min_iters=1024)
+
 
             M_rebuild = tf.einsum('axr,byr,czr->abcxyz', K0, K1, K2)
             M_rebuild = tf.reshape(M_rebuild, (S0*S1*S2 , T0*T1*T2))
             V_rebuild = tf.reshape(U, (N, S0*S1*S2))
-            V_rebuild = tf.einsum('ij,ni->nj', M_rebuild, V_rebuild)
+            # V_rebuild = tf.einsum('ij,ni->nj', M_rebuild, V_rebuild)
+            V_rebuild = tf.matmul(V_rebuild, M_rebuild)
             V_rebuild = tf.reshape(V_rebuild, (N,T0,T1,T2))
-
-            V_einsum = tf.einsum('nijk,ixr,jyr,kzr->nxyz', U, K0, K1, K2)
-
-            V_fused = cp_op_module.dense_cp(U, K0, K1, K2)
-
-            CPbench.run_op_benchmark(sess, V_gemm, name='TF_GEMM_op', min_iters=1024)
             CPbench.run_op_benchmark(sess, V_rebuild, name='TF_rebuild_op', min_iters=1024)
-            CPbench.run_op_benchmark(sess, V_einsum, name='TF_einsum_op', min_iters=1024)
+
+
+            # Compute the whole thing fused with einsum
+            V_einsum = tf.einsum('nijk,ixr,jyr,kzr->nxyz', U, K0, K1, K2)
+            CPbench.run_op_benchmark(sess, V_einsum, name='TF_einsum_fused_op', min_iters=1024)
+
+            # GPU fused operation
+            V_fused = cp_op_module.dense_cp(U, K0, K1, K2)
             CPbench.run_op_benchmark(sess, V_fused, name='custom_fused_op', min_iters=1024)
 
+            # Original OP
+            V_orig = tf.tensordot(U, K0, axes=[[1],[0]])
+            V_orig = tf.tensordot(V_orig, K1, axes=[[1,-1],[0,-1]])
+            V_orig = tf.tensordot(V_orig, K2, axes=[[1],[0]])
+            V_orig = tf.reduce_sum(V_orig, axis = 4)
+            CPbench.run_op_benchmark(sess, V_orig, name='TF_orig_op', min_iters=1024)
+
+            # Sequence OP
+            V_orig = tf.tensordot(U, K2, axes=[[1],[0]])
+            V_orig = tf.tensordot(V_orig, K1, axes=[[1,-1],[0,-1]])
+            V_orig = tf.tensordot(V_orig, K0, axes=[[1],[0]])
+            V_orig = tf.reduce_sum(V_orig, axis = 4)
+            CPbench.run_op_benchmark(sess, V_orig, name='TF_sequence_op', min_iters=1024)
