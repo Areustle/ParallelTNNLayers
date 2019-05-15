@@ -9,7 +9,7 @@ Tensorial Neural Networks: Generalization of Neural Networks and Application to 
 """
 
 """Tensorflow adaptation of https://github.com/smorita/Tensordot/blob/master/netcon.py 
-This allows for generalized tensor operations as described in """
+This allows for generalized tensor operations as described in J. Su et. al's paper. """
 #original__author__ = "Satoshi MORITA <morita@issp.u-tokyo.ac.jp>"
 #__date__ = "24 March 2016"
 
@@ -21,7 +21,7 @@ import math
 import sys
 import logging
 import time
-#import config
+import config
 
 DIMS = {} #Dictionary containing dimension of bonds. (dimensions of indices)
 
