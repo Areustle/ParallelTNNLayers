@@ -62,7 +62,7 @@ rcp_memory = {
     }
 
 def microseconds(x, pos):
-    return '{:.2f}'.format(x * 1e3)
+    return '{:.2f}'.format(x * 1e6)
 
 def megabytes(x, pos):
     return '{:.2f}'.format(x * 1e-6)
@@ -89,17 +89,19 @@ for n, name in enumerate(names):
         for to_log in range(2):
             lgname = ''
             fmt = formats[i]
-            pnm = r'Mean Execution Time ($\mu s$)' if i==0 else 'Memory Used (MB)'
+
+            pnm = 'Mean Execution Time' if i==0 else 'Memory Used'
             if to_log == 1:
                 lgname = 'log'
                 plt.yscale("log")
-                pnm = r'Mean Execution Time ($s$)' if i==0 else 'Memory Used (B)'
+                unit = r'($s$)' if i==0 else '(B)'
             else:
+                unit = r'($\mu s$)' if i==0 else '(MB)'
                 ax.yaxis.set_major_formatter(formats[i])
 
             title = lgname+' '+name+' '+pnm
             plt.title(title)
-            plt.ylabel(lgname + ' ' + pnm)
+            plt.ylabel(lgname + ' ' + pnm + ' ' + unit)
             plt.xlabel('Operations')
             plt.bar(range(len(D)), vals, align='edge', color=colors)
             plt.xticks(range(len(D)), list(D.keys()),  rotation=30)
