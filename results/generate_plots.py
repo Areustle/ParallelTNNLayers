@@ -6,94 +6,96 @@ import numpy as np
 # money = [1.5e5, 2.5e6, 5.5e6, 2.0e7]
 
 cp_times = {
-        "TF_normal_op"      : (0.00045239925384521484, 'black'),
-        "TF_normal_nhwc_op" : (0.00046896934509277344, 'gray' ),
-        "TF_original_cp_op" : (0.0007028579711914062, 'orange' ),
+        "TNN_original_cp_op" : (0.0007028579711914062, 'orange' ),
         "Custom_fused_op"   : (0.0004673004150390625, 'green' ),
-        "sequencer_op_nchw" : (0.0004552602767944336, 'blue' ),
-        "sequencer_nhwc_op" : (0.00016498565673828125, 'blue' ),
+        "TF_sequencer_op_nchw" : (0.0004552602767944336, 'blue' ),
+        "TF_sequencer_op_nhwc" : (0.00016498565673828125, 'blue' ),
+        "TF_rebuild_op"     : (0.00045228004455566406, 'red' ),
+        "TF_Full_op_nchw"   : (0.00045239925384521484, 'black'),
+        "TF_Full_op_nhwc"   : (0.00046896934509277344, 'gray' ),
     }
 
 cp_memory = {
-        "TF_normal_op"      : (140288.0, 'black'),
-        "TF_normal_nhwc_op" : (140288.0, 'gray' ),
-        "TF_original_cp_op" : (91096.0, 'orange' ),
+        "TNN_original_cp_op" : (91096.0, 'orange' ),
         "Custom_fused_op"   : (132056.0,'green' ),
-        "sequencer_op_nchw" : (93568.0, 'blue' ),
-        "sequencer_nhwc_op" : (65536.0,  'blue' ),
+        "TF_sequencer_op_nchw" : (93568.0, 'blue' ),
+        "TF_sequencer_op_nhwc" : (65536.0,  'blue' ),
+        "TF_rebuild_op"     : (140288.0, 'red' ),
+        "TF_Full_op_nchw"   : (140288.0, 'black'),
+        "TF_Full_op_nhwc"   : (140288.0, 'gray' ),
     }
 
 dense_cp_times = {
-        "TF_normal_op"      : (0.00037479400634765625, 'black'),
+        "TNN_original_cp_op" : (0.0009917020797729492, 'orange'),
+        "Custom_fused_op"   : (0.0035014318466186523, 'green'),
+        "TF_sequence_op"    : (0.0010008811950683594, 'blue'),
         "TF_rebuild_op"     : (0.0022580623626708984, 'red' ),
-        "TF_einsum_op"      : (0.0019397735595703125, 'blue' ),
-        "Custom_fused_op"   : (0.0036014318466186523, 'green'),
-        }
+        "TF_einsum_op"      : (0.0019397735595703125, 'pink' ),
+        "TF_Full_op"        : (0.00045079400634765625, 'black'),
+    }
 
 dense_cp_memory = {
-        "TF_normal_op"      : (1081344.0, 'black'),
-        "TF_rebuild_op"     : (145950976.0, 'red'),
-        "TF_einsum_op"      : (154877952.0, 'blue'),
+        "TNN_original_cp_op" : (1192448.0, 'orange'),
         "Custom_fused_op"   : (121856.0, 'green'),
-        }
+        "TF_sequence_op"    : (1192448.0, 'blue'),
+        "TF_rebuild_op"     : (145950976.0, 'red'),
+        "TF_einsum_op"      : (154877952.0, 'pink'),
+        "TF_Full_op"      : (1081344.0, 'black'),
+    }
 
 rcp_times = {
-        "TF_normal_op"      : (0.0005061626434326172, 'black'),
-        "TF_einsum_recomp_op" : (0.000836491584777832, 'red' ),
+        "TNN_orig_op"        : (0.000947117805480957, 'orange' ),
         "Custom_fused_op"   : (0.0009247064590454102, 'green' ),
-        "TF_orig_op"        : (0.000947117805480957, 'orange' ),
-        "TF_seq_nchw_op"    : (0.000874638557434082, 'blue' ),
-        "TF_seq_nhwc_op"    : (0.0009196996688842773, 'blue'),
+        "TF_seq_nchw_op"    : (0.001069784164428711, 'blue' ),
+        "TF_seq_nhwc_op"    : (0.0011096996688842773, 'blue'),
+        "TF_einsum_recomp_op" : (0.000836491584777832, 'red' ),
+        "TF_Full_op"      : (0.0005061626434326172, 'black'),
     }
 
 rcp_memory = {
-        "TF_normal_op"      : (140288.0, 'black'),
-        "TF_einsum_recomp_op" : (176128.0, 'red' ),
+        "TTNN_orig_op"        : (1442892.0,'orange' ),
         "Custom_fused_op"   : (132876.0, 'green' ),
-        "TF_orig_op"        : (1442892.0,'orange' ),
         "TF_seq_nchw_op"    : (1442188.0,'blue' ),
         "TF_seq_nhwc_op"    : (1442188.0, 'blue'),
+        "TF_einsum_recomp_op" : (176128.0, 'red' ),
+        "TF_Full_op"      : (140288.0, 'black'),
     }
 
-
-# def millions(x, pos):
-#     'The two args are the value and tick position'
-#     return '$%1.1fM' % (x * 1e-6)
 def microseconds(x, pos):
     return '{:.2f}'.format(x * 1e3)
 
 def megabytes(x, pos):
     return '{:.2f}'.format(x * 1e-6)
 
-# formatter = FuncFormatter(millions)
 timeformatter = FuncFormatter(microseconds)
 sizeformatter = FuncFormatter(megabytes)
 
 times = [cp_times, rcp_times, dense_cp_times]
 memory = [cp_memory, rcp_memory, dense_cp_memory]
 names = ['CP Conv2d', 'rCP Conv2d', 'CP Dense']
-# plot_type = ['Absolute.', 'Relative to Normal Operation.']
 formats = [timeformatter, sizeformatter]
-# lists = [val for pair in zip(times, memory) for val in pair]
 
 for n, name in enumerate(names):
     for i, D in enumerate((times[n], memory[n])):
         # for pt, pt_name in enumerate(plot_type):
         fig, ax = plt.subplots()
 
-        pnm = 'Execution Time (s)' if i==0 else 'Memory Used (MB)'
 
         vals_colors = list(D.values())
         vals, colors = zip(*vals_colors)
 
         ratios = [v / vals[0] for v in vals]
-        # print(ratios)
 
         for to_log in range(2):
             lgname = ''
+            fmt = formats[i]
+            pnm = r'Mean Execution Time ($\mu s$)' if i==0 else 'Memory Used (MB)'
             if to_log == 1:
                 lgname = 'log'
                 plt.yscale("log")
+                pnm = r'Mean Execution Time ($s$)' if i==0 else 'Memory Used (B)'
+            else:
+                ax.yaxis.set_major_formatter(formats[i])
 
             title = lgname+' '+name+' '+pnm
             plt.title(title)
