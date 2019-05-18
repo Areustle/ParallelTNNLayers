@@ -9,7 +9,7 @@ Tensorial Neural Networks: Generalization of Neural Networks and Application to 
 """
 
 """Tensorflow adaptation of https://github.com/smorita/Tensordot/blob/master/netcon.py 
-This allows for generalized tensor operations as described in J. Su et. al's paper. """
+This allows for generalized tensor operations as described in """
 #original__author__ = "Satoshi MORITA <morita@issp.u-tokyo.ac.jp>"
 #__date__ = "24 March 2016"
 
@@ -21,7 +21,7 @@ import math
 import sys
 import logging
 import time
-import config
+#import config
 
 DIMS = {} #Dictionary containing dimension of bonds. (dimensions of indices)
 
@@ -266,16 +266,16 @@ def _conv_pop(fullbonds,do_Conv=True,do_Pop=True,remove_all_pairs=False):
             if DIMS[legs]==DIMS[legs.lower()] and (legs.upper() in fullbonds): #Check for a convolved pair.
                 fullbonds.remove(legs.upper()) #Remove the convolving leg with lower dimension.
                 if remove_all_pairs:
-                    fullbonds.remove(legs) #Remove the entire convolution pai.r
-            elif legs.lower() in fullbonds:
-                fullbonds.remove(legs) #Else remove itself if it has the lower dimension
+                    fullbonds.remove(legs) #Remove the entire convolution pair
+            elif DIMS[legs]==DIMS[legs.upper()] and legs.lower() in fullbonds:
+                fullbonds.remove(legs.upper()) #Else remove itself if it has the lower dimension
                 if remove_all_pairs:
-                    fullbonds.remove(legs(lower()))
+                    fullbonds.remove(legs.lower())
         elif legs[-1]=="+" and do_Pop:
             if legs==legs.upper() and (legs.lower() in fullbonds): #Check for a partial o.p. pair
                 fullbonds.remove(legs.upper())
                 if remove_all_pairs:
-                    fullbonds.remove(legs.lower()) #Remove the entire partial outer product pair.
+                    fullbonds.remove(legs) #Remove the entire partial outer product pair.
             elif legs.upper() in fullbonds:
                 fullbonds.remove(legs.upper()) #Remove one of the o.p. pair 
                 if remove_all_pairs:
