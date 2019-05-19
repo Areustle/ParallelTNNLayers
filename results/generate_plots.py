@@ -48,7 +48,7 @@ rcp_times = {
         "Custom_fused_op"   : (0.0009247064590454102, 'green' ),
         "TF_seq_nchw_op"    : (0.001069784164428711, 'blue' ),
         "TF_seq_nhwc_op"    : (0.0011096996688842773, 'blue'),
-        "TF_einsum_recomp_op" : (0.000836491584777832, 'red' ),
+        "TF_rebuild_op" : (0.000836491584777832, 'red' ),
         "TF_Full_op"      : (0.0005061626434326172, 'black'),
     }
 
@@ -57,7 +57,7 @@ rcp_memory = {
         "Custom_fused_op"   : (132876.0, 'green' ),
         "TF_seq_nchw_op"    : (1442188.0,'blue' ),
         "TF_seq_nhwc_op"    : (1442188.0, 'blue'),
-        "TF_einsum_recomp_op" : (176128.0, 'red' ),
+        "TF_rebuild_op" : (176128.0, 'red' ),
         "TF_Full_op"      : (140288.0, 'black'),
     }
 
@@ -92,14 +92,14 @@ for n, name in enumerate(names):
 
             pnm = 'Mean Execution Time' if i==0 else 'Memory Used'
             if to_log == 1:
-                lgname = 'log'
+                lgname = 'log '
                 plt.yscale("log")
                 unit = r'($s$)' if i==0 else '(B)'
             else:
                 unit = r'($\mu s$)' if i==0 else '(MB)'
                 ax.yaxis.set_major_formatter(formats[i])
 
-            title = lgname+' '+name+' '+pnm
+            title = lgname + name+' '+pnm
             plt.title(title)
             plt.ylabel(lgname + ' ' + pnm + ' ' + unit)
             plt.xlabel('Operations')
