@@ -53,7 +53,7 @@ rcp_times = {
     }
 
 rcp_memory = {
-        "TTNN_orig_op"        : (1442892.0,'orange' ),
+        "TNN_orig_op"        : (1442892.0,'orange' ),
         "Custom_fused_op"   : (132876.0, 'green' ),
         "TF_seq_nchw_op"    : (1442188.0,'blue' ),
         "TF_seq_nhwc_op"    : (1442188.0, 'blue'),
