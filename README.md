@@ -11,7 +11,7 @@ Tests and Benchmarks require Tensorflow, Python 3.x and a GPU capable of running
 To build Custom Fused operations:
 
 1. `cd Kernels`
-1. Modify the Makefile 'Vars specific to local development machine' section for your personal machine.`
+1. Modify the Makefile 'Vars specific to local development machine' section for your personal machine. This requires setting your CUDA architecture string along with locations of CUDA headers and libraries. 
 1. `make `
 1. `cd ..`
 
@@ -26,8 +26,8 @@ To generate plots on past data:
 ## Custom Fused Kernels
 
 Cuda kernels and tensorflow C++ wrappers needed to register custom operations
-can be found in the `Kernels` directory. `\*.cu` files are auto-tuned CUDA kernels, while
-the associated `\*.cc` files are C++ wrapper codes that expose the custom fused kernels to
+can be found in the `Kernels` directory. `*.cu` files are auto-tuned CUDA kernels, while
+the associated `*.cc` files are C++ wrapper codes that expose the custom fused kernels to
 tensorflow.
 
 ## Sequencer
