@@ -10,7 +10,7 @@ Tensorial Neural Networks: Generalization of Neural Networks and Application to 
 
 """Tensorflow adaptation of https://github.com/smorita/Tensordot/blob/master/netcon.py 
 This allows for generalized tensor operations as described in """
-#original__author__ = "Satoshi MORITA <morita@issp.u-tokyo.ac.jp>"
+#heavily adapted from netcon() python code written by "Satoshi MORITA <morita@issp.u-tokyo.ac.jp>"
 #__date__ = "24 March 2016"
 
 #new__author__ = "Tahseen Rabbani<trabbani@math.umd.edu"
