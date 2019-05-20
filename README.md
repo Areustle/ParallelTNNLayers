@@ -3,7 +3,10 @@ Parallel implementations of decomposed tensorial neural network layers
 
 ## Instructions to reproduce results
 
+#### Requirements
 Tests and Benchmarks require Tensorflow, Python 3.x and a GPU capable of running Tensorflow along with CUDA and CUDNN libraries installed.
+
+#### Instructions
 
 To build Custom Fused operations:
 
@@ -12,9 +15,9 @@ To build Custom Fused operations:
 1. `make `
 1. `cd ..`
 
-To run tests and benchmarks:
+To run tests and benchmarks enter the `test` directory and execute the individual python scripts. We've also written a simple script `run_all.sh` to execute all tests and benchmarks directly.
 
-`cd test && bash run_all.sh && cd ..`
+`cd test && ./run_all.sh && cd ..`
 
 To generate plots on past data:
 
@@ -23,8 +26,8 @@ To generate plots on past data:
 ## Custom Fused Kernels
 
 Cuda kernels and tensorflow C++ wrappers needed to register custom operations
-can be found in the `Kernels` directory. *.cu files are auto-tuned CUDA kernels, while
-the associated *.cc files are C++ wrapper codes that expose the custom fused kernels to
+can be found in the `Kernels` directory. `\*.cu` files are auto-tuned CUDA kernels, while
+the associated `\*.cc` files are C++ wrapper codes that expose the custom fused kernels to
 tensorflow.
 
 ## Sequencer
