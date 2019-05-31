@@ -58,11 +58,14 @@ class CPOpTest(tf.test.TestCase):
             tK1 = tf.convert_to_tensor(K1)
             tK2 = tf.convert_to_tensor(K2)
 
-            V_seq_k3 = tf.einsum('hwr,rc->hwrc', tK1, tK2)
-            V_seq_u0 = tf.einsum('nchw,cr->nhwr', tU, tK0)
-            V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME")
-            V_seq = tf.transpose(V_seq, [0,3,1,2])
-            self.assertAllClose(V_normal.eval(), V_seq.eval(), rtol=1e-03, atol=1e-03)
+            V_seq_k3_nhwc = tf.einsum('hwr,rc->hwrc', tK1, tK2)
+            V_seq_u0_nhwc = tf.einsum('nhwc,cr->nhwr', tf.transpose(tU, (0,2,3,1)) , tK0)
+            V_seq_nhwc = tf.nn.conv2d(V_seq_u0_nhwc, V_seq_k3_nhwc, strides=[1,1,1,1], padding="SAME")
+            # V_seq_k3 = tf.einsum('hwr,rc->hwrc', tK1, tK2)
+            # V_seq_u0 = tf.einsum('nchw,cr->nhwr', tU, tK0)
+            # V_seq = tf.nn.conv2d(V_seq_u0, V_seq_k3, strides=[1,1,1,1], padding="SAME")
+            # V_seq = tf.transpose(V_seq, [0,3,1,2])
+            self.assertAllClose(V_normal.eval(), V_seq_nhwc.eval(), rtol=1e-03, atol=1e-03)
 
 
 
