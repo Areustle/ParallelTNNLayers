@@ -27,16 +27,32 @@ K = np.einsum('ir,hr,wr,or->hwio', K0, K1, K2, K3)
 
 if __name__ == "__main__":
 
-    CPbench = tf.test.Benchmark()
     cp_op_module = tf.load_op_library('../Kernels/cp4_conv_nchw.so')
 
     with tf.Session() as sess:
+
+        profiler = tf.profiler.Profiler(sess.graph)
+
         with tf.device('/device:GPU:0'):
 
             # Custom fused GPU implementation.
             V_fused = cp_op_module.cp4_conv2d_nchw(U, K0, K1, K2, K3)
-            CPbench.run_op_benchmark(sess, V_fused, name='custom_fused_op', min_iters=min_iters)
 
-            # # Rebuild Op.
             V_rebuild = tf.nn.conv2d(U, K, strides=[1,1,1,1], padding="SAME", data_format=data_format)
-            CPbench.run_op_benchmark(sess, V_rebuild, name='TF_rebuild_nchw_op', min_iters=min_iters)
+
+            run_meta = tf.RunMetadata()
+            _ = sess.run(V_fused,
+                    options = tf.RunOptions(
+                        trace_level=tf.RunOptions.FULL_TRACE),
+                    run_metadata=run_meta)
+            profiler.add_step(0, run_meta)
+            # # Profile the parameters of your model.
+            profiler.profile_name_scope(options=(tf.profiler.ProfileOptionBuilder
+                .trainable_variables_parameter()))
+
+            # # Or profile the timing of your model operations.
+            opts = tf.profiler.ProfileOptionBuilder.time_and_memory()
+            profiler.profile_operations(options=opts)
+
+        profiler.advise()
+

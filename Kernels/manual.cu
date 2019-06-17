@@ -1,7 +1,7 @@
-#if GOOGLE_CUDA
-#define EIGEN_USE_GPU
+#include <cudnn.h>
+#include <iostream>
 
-extern "C"
+
 __global__
 void default_function_kernel0(const float* __restrict__ Data,
     const float* __restrict__ K0,
@@ -85,16 +85,42 @@ void default_function_kernel0(const float* __restrict__ Data,
 }
 
 
-void Cp4Conv2dFusedNchwKernelLauncher(const float* U, const float* K0,
-    const float* K1, const float* K2, const float* K3, float* V){
+/* void Cp4Conv2dFusedNchwKernelLauncher(const float* U, const float* K0, */
+/*     const float* K1, const float* K2, const float* K3, float* V){ */
+
+int main(){
+
+  size_t PROFCOUNT = 100000;
+
+  /* Begin Custom Kernel Profile section */
+
+  float* U;
+  float* K0;
+  float* K1;
+  float* K2;
+  float* K3;
+  float* V;
+
+  cudaMalloc(&U, (1*16*32*32)*sizeof(float));
+  cudaMalloc(&K0, (16*6)*sizeof(float));
+  cudaMalloc(&K1, (3*6)*sizeof(float));
+  cudaMalloc(&K2, (3*6)*sizeof(float));
+  cudaMalloc(&K3, (16*6)*sizeof(float));
+  cudaMalloc(&V, (1*16*32*32)*sizeof(float));
 
   dim3 gridDim0(1, 16, 1);
   dim3 blockDim0(32, 1, 16);
 
-  default_function_kernel0<<<gridDim0, blockDim0>>>(U, K0, K1, K2, K3, V);
-  /* cudaDeviceSynchronize(); */
+  for (size_t i=0; i<PROFCOUNT; ++i){
+    default_function_kernel0<<<gridDim0, blockDim0>>>(U, K0, K1, K2, K3, V);
+    cudaDeviceSynchronize();
+  }
+
+  cudaFree(U);
+  cudaFree(K0);
+  cudaFree(K1);
+  cudaFree(K2);
+  cudaFree(K3);
+  cudaFree(V);
 
 }
-
-#endif
-

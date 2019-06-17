@@ -12,7 +12,8 @@ TF_LFLAGS := $(shell python -c 'import tensorflow as tf; print(" ".join(tf.sysco
 all : cp_fused_nchw.so \
 	rcp_fused_nchw.so \
 	cp4_conv_nchw.so \
-	dense_cp.so
+	dense_cp.so \
+	manual
 
 
 %.so : %.cc %.cu.o
@@ -21,6 +22,8 @@ all : cp_fused_nchw.so \
 %.cu.o: %.cu
 	nvcc -o $@ $< -O3 -std=c++14 -arch=$(CUDA_ARCH) $(TF_CFLAGS) -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC -c
 
+manual: manual.cu
+	nvcc -o $@ $< -O3 -std=c++14 -arch=$(CUDA_ARCH) $(TF_CFLAGS)
 
 
 .PHONY: clean
