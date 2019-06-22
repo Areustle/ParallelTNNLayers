@@ -1,4 +1,3 @@
-#include <cudnn.h>
 #include <iostream>
 
 
