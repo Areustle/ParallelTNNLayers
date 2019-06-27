@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <cudnn.h>
 
 class CudnnConv2d
 {
@@ -28,31 +29,9 @@ public:
               const size_t W,
               const size_t F,
               const size_t Y,
-              const size_t X)
-      : N(N)
-      , C(C)
-      , H(H)
-      , W(W)
-      , F(F)
-      , Y(Y)
-      , X(X) {}
+              const size_t X);
 
-  ~CudnnConv2d() {}
+  ~CudnnConv2d();
 
-  void conv2d(float* U, float* K, float* V) {
-    const float alpha = 1, beta = 0;
-    cudnnConvolutionForward(cudnn,
-                            &alpha,
-                            input_descriptor,
-                            U,
-                            kernel_descriptor,
-                            K,
-                            convolution_descriptor,
-                            convolution_algorithm,
-                            d_workspace,
-                            workspace_bytes,
-                            &beta,
-                            output_descriptor,
-                            V);
-  }
+  void conv2d(float* U, float* K, float* V);
 };
