@@ -1,3 +1,6 @@
+#ifndef CPU_CONV2D_H
+#define CPU_CONV2D_H
+
 #include <cstddef>
 
 namespace cpu_imp {
@@ -12,3 +15,5 @@ namespace cpu_imp {
                const size_t dKH = 3,
                const size_t dKW = 3 );
 }
+
+#endif /* CPU_CONV2D_H */

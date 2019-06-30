@@ -1,3 +1,6 @@
+#ifndef CUDNN_FULL_CONV2D_H
+#define CUDNN_FULL_CONV2D_H
+
 #include <cstddef>
 #include <cudnn.h>
 
@@ -35,3 +38,5 @@ public:
 
   void conv2d(float* U, float* K, float* V);
 };
+
+#endif /* CUDNN_FULL_CONV2D_H */
