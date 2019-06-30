@@ -1,4 +1,8 @@
+#ifndef CONV_UTILS_H
+#define CONV_UTILS_H
+
 #include <cstddef>
+#include "Tensor.h"
 
 void pad_array(float*  U,
                size_t* dN,
@@ -19,3 +23,5 @@ namespace cpu_imp {
               const size_t dKH = 3,
               const size_t dKW = 3);
 }
+
+#endif /* CONV_UTILS_H */
