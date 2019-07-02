@@ -1,44 +1,50 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+/* #include "CudaAllocator.h" */
+/* #include "Tensor.h" */
+#include <iostream>
+/* #include <random> */
 
-/* #include "cudnn_full_conv2d.h" */
-#include "CudaAllocator.h"
-#include "Tensor.h"
-#include "doctest/doctest.h"
-#include <cstdlib>
-#include <random>
+using namespace std;
 
-TEST_CASE("Check cudnn full convolution") {
+int main() {
 
-  const size_t dN = 1, dC = 16, dH = 32, dW = 32, dF = 16, dKH = 3, dKW = 3;
-  std::random_device               rd;
-  std::mt19937                     gen(rd());
-  std::uniform_real_distribution<> dis(-1.0, 1.0);
+  /* const size_t  dN = 1, dC = 1, dH = 1, dW = 4; //, dF = 16, dKH = 3, dKW = 3; */
+  /* random_device rd; */
+  /* mt19937       gen(rd()); */
+  /* uniform_real_distribution<> dis(-1.0, 1.0); */
 
-  auto random_fill = [&dis, &gen](size_t len, float* A) {
-    for (size_t i = 0; i < len; ++i)
-      A[i] = dis(gen);
-  };
+  /* auto random_fill = [&dis, &gen](size_t len, float* A) { */
+  /*   for (size_t i = 0; i < len; ++i) */
+  /*     A[i] = dis(gen); */
+  /* }; */
 
-  size_t len_input  = (dN * dC * dH * dW);
-  size_t len_output = (dN * dC * dH * dW);
-  size_t len_kernel = (dC * dF * dKH * dKW);
+  /* size_t len_input = (dN * dC * dH * dW); */
 
-  Tensor<> cpu_input(dN, dC, dH, dW);
-  Tensor<> cpu_output(cpu_input);
-  Tensor<> cpu_kernel = Tensor<>(dC, dF, dKH, dKW);
+  /* Tensor input(dN, dC, dH, dW); */
+  /* random_fill(len_input, input.data); */
 
-  random_fill(len_input, cpu_input.data);
-  random_fill(len_output, cpu_output.data);
-  random_fill(len_kernel, cpu_kernel.data);
+  /* Tensor output(input); */
 
-  Tensor<> gpu_input(cpu_input);
-  Tensor<> gpu_output(cpu_output);
-  Tensor<> gpu_kernel = cpu_kernel;
+  /* if (input.data[0] == output.data[0]) */
+  /*   cout << "EQUAL" << endl; */
+  /* else */
+  /*   cout << "NOT EQUAL" << endl; */
 
-  CHECK(cpu_input.data[0] == gpu_input.data[0]);
-  CHECK(cpu_input.data[0] == doctest::Approx(gpu_input.data[0]).epsilon(1e-3));
+  /* CHECK(input.data[0] == doctest::Approx(output.data[0]).epsilon(1e-3)); */
 
-  for (int i=0; i<cpu_input.len; ++i){
-    CHECK(cpu_input.data[i] == doctest::Approx(gpu_input.data[i]).epsilon(1e-3));
-  }
+  /* for (int i = 0; i < input.len; ++i) { */
+  /*   CHECK(input.data[i] == doctest::Approx(output.data[i]).epsilon(1e-3)); */
+  /* } */
+
+  float* input;
+  float* output;
+  cudaMallocManaged(&input, 4*sizeof(float));
+  cudaMemset(input, 4, 4);
+  /* input[0] = 7; */
+  cudaMallocManaged(&output, 4*sizeof(float));
+  cudaMemcpy(output, input, 4, cudaMemcpyDeviceToDevice);
+
+  cout << input[0] << "____" << output[0] << endl;
+
+  cudaFree(input);
+  cudaFree(output);
 }

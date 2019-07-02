@@ -3,43 +3,42 @@
 #include "CudaAllocator.h"
 
 
-template<class A>
-Tensor<A>::Tensor(size_t N, size_t C, size_t H, size_t W)
+Tensor::Tensor(size_t N, size_t C, size_t H, size_t W)
     : N(N)
     , C(C)
     , H(H)
     , W(W)
     , len(N * C * H * W) {
-  float* buf = std::allocator_traits<A>::allocate(Alloc, len);
-  data       = new (buf) float(0);
+  cudaMalloc(&data, len * sizeof(float));
+  cudaMemset(&data, 0, len);
+  cudaDeviceSynchronize();
 }
 
-template<class A>
-Tensor<A>::Tensor(Tensor<A> const& other)
+Tensor::Tensor(Tensor const& other)
     : N(other.N)
     , C(other.C)
     , H(other.H)
     , W(other.W)
-    , len(N * C * H * W) {
-  float* buf = std::allocator_traits<A>::allocate(Alloc, len);
-  data       = new (buf) float(*other.data);
+    , len(other.len) {
+  cudaMalloc(&data, len * sizeof(float));
+  cudaMemcpy(data, other.data, len, cudaMemcpyDeviceToDevice);
+  cudaDeviceSynchronize();
 }
 
-template<class A> Tensor<A>& Tensor<A>::operator=(Tensor<A> const& other) {
+Tensor& Tensor::operator=(Tensor const& other) {
   if (this == &other)
     return *this;
   if (len != other.len) {
     delete[] data;
-    len  = other.len;
-    data = std::allocator_traits<A>::allocate(Alloc, len);
+    len = other.len;
+    cudaMalloc(&data, len * sizeof(float));
   }
-  std::copy(&other.data[0], &other.data[0] + other.len, &data[0]);
+  cudaMemcpy(data, other.data, len, cudaMemcpyDeviceToDevice);
+  cudaDeviceSynchronize();
   return *this;
 }
 
-template<class A> Tensor<A>::~Tensor() {
-  std::allocator_traits<A>::deallocate(Alloc, data, len);
+Tensor::~Tensor() {
+  cudaDeviceSynchronize();
+  cudaFree(data);
 }
-
-template class Tensor<CudaAllocator>;
-template class Tensor<std::allocator<float>>;

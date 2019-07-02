@@ -5,11 +5,8 @@
 #include <cstddef>
 #include <memory>
 
-template<class A = CudaAllocator> class Tensor
+class Tensor
 {
-private:
-  A Alloc;
-
 public:
   size_t N;
   size_t C;
@@ -28,7 +25,6 @@ public:
 
   float* get() { return data; }
   size_t size() { return len; }
-
 };
 
 #endif /* TENSOR_H */

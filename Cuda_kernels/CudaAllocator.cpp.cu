@@ -2,7 +2,7 @@
 
 float* CudaAllocator::allocate(std::size_t n) {
   float* p;
-  cudaMallocManaged(&p, n * sizeof(float));
+  cudaMalloc(&p, n * sizeof(float));
   cudaDeviceSynchronize();
   return p;
 }
