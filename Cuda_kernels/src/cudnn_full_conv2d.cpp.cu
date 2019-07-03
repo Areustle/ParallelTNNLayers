@@ -1,4 +1,7 @@
+#define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
+
 #include "Cuda_kernels/cudnn_full_conv2d.h"
+#include "doctest/doctest.h"
 #include <cudnn.h>
 #include <iostream>
 
@@ -83,4 +86,3 @@ void CudnnConv2d::opearator()(float* Input, float* Kernel, float* Output) {
                           output_descriptor,
                           Output);
 }
-

@@ -1,10 +1,6 @@
-#define DOCTEST_CONFIG_DISABLE
-
 #include "Cuda_kernels/Tensor.h"
-#include "doctest/doctest.h"
 
-/* #include "Cuda_kernels/CudaAllocator.h" */
-
+using namespace std;
 
 Tensor::Tensor(size_t N, size_t C, size_t H, size_t W)
     : N(N)
@@ -47,9 +43,13 @@ Tensor::~Tensor() {
 }
 
 
+/******************************************************************************
+* Test Code Below.
+******************************************************************************/
+#define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
+#include "doctest/doctest.h"
 #include <random>
 
-using namespace std;
 
 TEST_CASE("Testing the Tensor Class") {
 
