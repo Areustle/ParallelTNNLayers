@@ -1,4 +1,5 @@
 #include "cudnn_full_conv2d.h"
+#include "doctest/doctest.h"
 #include <cudnn.h>
 #include <iostream>
 
@@ -66,7 +67,8 @@ CudnnConv2d::~CudnnConv2d() {
   cudnnDestroy(cudnn);
 }
 
-void CudnnConv2d::conv2d(float* Input, float* Kernel, float* Output) {
+
+void CudnnConv2d::opearator()(float* Input, float* Kernel, float* Output) {
   const float alpha = 1, beta = 0;
   cudnnConvolutionForward(cudnn,
                           &alpha,
@@ -82,3 +84,5 @@ void CudnnConv2d::conv2d(float* Input, float* Kernel, float* Output) {
                           output_descriptor,
                           Output);
 }
+
+TEST_CASE("")
