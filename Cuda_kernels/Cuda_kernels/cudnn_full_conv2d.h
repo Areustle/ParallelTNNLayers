@@ -36,7 +36,7 @@ public:
 
   ~CudnnConv2d();
 
-  void opearator()(float* U, float* K, float* V);
+  void conv2d(float* U, float* K, float* V);
 };
 
 #endif /* CUDNN_FULL_CONV2D_H */

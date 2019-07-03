@@ -11,5 +11,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(external)
+list(APPEND CMAKE_MODULE_PATH
+  "${CMAKE_CURRENT_SOURCE_DIR}/external/Catch2/contrib")
+
 add_subdirectory(Cuda_kernels)
 # add_subdirectory(Kernels)

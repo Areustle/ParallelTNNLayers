@@ -1,10 +1,5 @@
-#define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
-
 #include "Cuda_kernels/cudnn_full_conv2d.h"
-#include "doctest/doctest.h"
 #include <cudnn.h>
-#include <iostream>
-
 
 CudnnConv2d::CudnnConv2d(const size_t N,
                          const size_t C,
@@ -57,7 +52,7 @@ CudnnConv2d::CudnnConv2d(const size_t N,
                                           convolution_algorithm,
                                           &workspace_bytes);
 
-  cudaMalloc(&d_workspace, workspace_bytes);
+  cudaMallocManaged(&d_workspace, workspace_bytes);
 }
 
 CudnnConv2d::~CudnnConv2d() {
@@ -70,7 +65,7 @@ CudnnConv2d::~CudnnConv2d() {
 }
 
 
-void CudnnConv2d::opearator()(float* Input, float* Kernel, float* Output) {
+void CudnnConv2d::conv2d(float* Input, float* Kernel, float* Output) {
   const float alpha = 1, beta = 0;
   cudnnConvolutionForward(cudnn,
                           &alpha,
@@ -85,4 +80,5 @@ void CudnnConv2d::opearator()(float* Input, float* Kernel, float* Output) {
                           &beta,
                           output_descriptor,
                           Output);
+  cudaDeviceSynchronize();
 }
