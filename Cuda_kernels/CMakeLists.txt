@@ -18,17 +18,28 @@ target_include_directories(cudnn_full_conv2d PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 
 # # target_link_libraries
-target_link_libraries(Tensor PRIVATE doctest)
-target_link_libraries(cudnn_full_conv2d 
-  PUBLIC cudnn
-  PRIVATE doctest)
+# target_link_libraries(Tensor PRIVATE)
+target_link_libraries(cudnn_full_conv2d PUBLIC cudnn)
 
 ###############################################################################
 # Tests
 ###############################################################################
-add_executable(test_main test/test_main.cpp.cu )
 
-target_link_libraries(test_main PRIVATE doctest Tensor cudnn_full_conv2d)
+add_executable(test_main
+  test/test_main.cpp.cu
+  test/test_cudnn_full_conv2d.cpp.cu
+  test/test_Tensor.cpp.cu
+  )
+
+target_link_libraries(test_main PRIVATE 
+  Tensor 
+  cudnn_full_conv2d
+  doctest
+  )
+
+include(CTest)
+include(Catch)
+catch_discover_tests( test_main )
 
 
 
