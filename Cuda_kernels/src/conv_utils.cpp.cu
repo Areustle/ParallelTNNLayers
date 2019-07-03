@@ -1,4 +1,4 @@
-#include "cpu_conv2d.h"
+#include "Cuda_kernels/cpu_conv2d.h"
 
 void cpu_imp::conv2d(float*       U, //[N,C,H,W]
                      float*       K, //[C,F,KH,KW]
