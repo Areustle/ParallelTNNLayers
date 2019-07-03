@@ -1,7 +1,7 @@
-#include "doctest/doctest.h"
+#include "doctest.h"
 
-#include "Cuda_kernels/Tensor.h"
-#include "Cuda_kernels/cudnn_full_conv2d.h"
+#include "Tensor.h"
+#include "cudnn_full_conv2d.h"
 
 #include <iostream>
 
@@ -20,9 +20,7 @@ TEST_CASE("cudnn_full_conv2d test") {
   conv0.conv2d(U0.m_data, K.m_data, U1.m_data);
   conv0.conv2d(U1.m_data, K.m_data, V.m_data);
 
-  /* std::cout << *V.m_data; */
-
-  for (int i = 0; i < V.size; ++i) {
+  for (int i = 0; i < V.size(); ++i) {
     CHECK(V[i] == 0);
   }
 }

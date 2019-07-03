@@ -1,4 +1,4 @@
-#include "Cuda_kernels/CudaAllocator.h"
+#include "CudaAllocator.h"
 
 float* CudaAllocator::allocate(std::size_t n) {
   float* p;
