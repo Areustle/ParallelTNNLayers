@@ -1,4 +1,4 @@
-#include "Cuda_kernels/cudnn_full_conv2d.h"
+#include "cudnn_full_conv2d.h"
 #include <cudnn.h>
 
 CudnnConv2d::CudnnConv2d(const size_t N,

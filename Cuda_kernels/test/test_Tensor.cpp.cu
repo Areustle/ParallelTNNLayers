@@ -1,5 +1,5 @@
-#include "doctest/doctest.h"
-#include "Cuda_kernels/Tensor.h"
+#include "doctest.h"
+#include "Tensor.h"
 #include <random>
 
 using namespace std;
@@ -17,13 +17,14 @@ TEST_CASE("Testing the Tensor Class") {
   };
 
   Tensor ten(dN, dC, dH, dW);
-  random_fill(ten.size, ten);
+
+  random_fill(ten.size(), ten);
 
   Tensor input(ten);
 
   CHECK(input[0] == doctest::Approx(ten[0]).epsilon(1e-3));
 
-  for (int i = 0; i < ten.size; ++i) {
+  for (int i = 0; i < ten.size(); ++i) {
     REQUIRE(input[i] == doctest::Approx(ten[i]).epsilon(1e-3));
   }
 }

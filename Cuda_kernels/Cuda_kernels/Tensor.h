@@ -1,7 +1,6 @@
 #ifndef TENSOR_H
 #define TENSOR_H
 
-#include "CudaAllocator.h"
 #include <cstddef>
 #include <memory>
 
@@ -12,7 +11,7 @@ public:
   size_t C;
   size_t H;
   size_t W;
-  size_t size;
+  size_t len;
   float* m_data;
 
   Tensor(size_t N, size_t C, size_t H, size_t W);
@@ -24,7 +23,7 @@ public:
   ~Tensor();
 
   float* get() { return m_data; }
-  size_t len() { return size; }
+  size_t size() { return len; }
 
   float& operator[](size_t const index) { return m_data[index]; }
 };
