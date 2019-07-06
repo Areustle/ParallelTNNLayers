@@ -12,5 +12,6 @@ Tensor random_fill(size_t N,
                    float  lo = -1.0,
                    float  hi = 1.0);
 
+Tensor cp4recom(Tensor A, Tensor B, Tensor C, Tensor D);
 
 #endif /* CONV_UTILS_H */
