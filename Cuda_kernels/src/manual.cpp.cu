@@ -1,3 +1,5 @@
+#include "Tensor.h"
+#include "manual.h"
 #include <iostream>
 
 
@@ -143,41 +145,59 @@ __global__ void default_function_kernel0(const float* __restrict__ Data,
 }
 
 
+Tensor static_cp4_conv2d(Tensor const U,
+                         Tensor const K0,
+                         Tensor const K1,
+                         Tensor const K2,
+                         Tensor const K3) {
+
+  Tensor V(1, 16, 32, 32);
+  dim3   gridDim0(1, 16, 1);
+  dim3   blockDim0(32, 1, 16);
+
+  default_function_kernel0<<<gridDim0, blockDim0>>>(
+      U.m_data, K0.m_data, K1.m_data, K2.m_data, K3.m_data, V.m_data);
+  cudaDeviceSynchronize();
+
+  return V;
+}
+
 /* void Cp4Conv2dFusedNchwKernelLauncher(const float* U, const float* K0, */
 /*     const float* K1, const float* K2, const float* K3, float* V){ */
 
-int main() {
+/* int main() { */
 
-  size_t PROFCOUNT = 100000;
+/*   size_t PROFCOUNT = 100000; */
 
-  /* Begin Custom Kernel Profile section */
+/*   /1* Begin Custom Kernel Profile section *1/ */
 
-  float* U;
-  float* K0;
-  float* K1;
-  float* K2;
-  float* K3;
-  float* V;
+/*   float* U; */
+/*   float* K0; */
+/*   float* K1; */
+/*   float* K2; */
+/*   float* K3; */
+/*   float* V; */
 
-  cudaMalloc(&U, (1 * 16 * 32 * 32) * sizeof(float));
-  cudaMalloc(&K0, (16 * 6) * sizeof(float));
-  cudaMalloc(&K1, (3 * 6) * sizeof(float));
-  cudaMalloc(&K2, (3 * 6) * sizeof(float));
-  cudaMalloc(&K3, (16 * 6) * sizeof(float));
-  cudaMalloc(&V, (1 * 16 * 32 * 32) * sizeof(float));
+/*   cudaMalloc(&U, (1 * 16 * 32 * 32) * sizeof(float)); */
+/*   cudaMalloc(&K0, (16 * 6) * sizeof(float)); */
+/*   cudaMalloc(&K1, (3 * 6) * sizeof(float)); */
+/*   cudaMalloc(&K2, (3 * 6) * sizeof(float)); */
+/*   cudaMalloc(&K3, (16 * 6) * sizeof(float)); */
+/*   cudaMalloc(&V, (1 * 16 * 32 * 32) * sizeof(float)); */
 
-  dim3 gridDim0(1, 16, 1);
-  dim3 blockDim0(32, 1, 16);
+/*   dim3 gridDim0(1, 16, 1); */
+/*   dim3 blockDim0(32, 1, 16); */
 
-  for (size_t i = 0; i < PROFCOUNT; ++i) {
-    default_function_kernel0<<<gridDim0, blockDim0>>>(U, K0, K1, K2, K3, V);
-    cudaDeviceSynchronize();
-  }
+/*   for (size_t i = 0; i < PROFCOUNT; ++i) { */
+/*     default_function_kernel0<<<gridDim0, blockDim0>>>(U, K0, K1, K2, K3, V);
+ */
+/*     cudaDeviceSynchronize(); */
+/*   } */
 
-  cudaFree(U);
-  cudaFree(K0);
-  cudaFree(K1);
-  cudaFree(K2);
-  cudaFree(K3);
-  cudaFree(V);
-}
+/*   cudaFree(U); */
+/*   cudaFree(K0); */
+/*   cudaFree(K1); */
+/*   cudaFree(K2); */
+/*   cudaFree(K3); */
+/*   cudaFree(V); */
+/* } */

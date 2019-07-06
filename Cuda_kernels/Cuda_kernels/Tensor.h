@@ -15,11 +15,10 @@ public:
   float* m_data;
 
   Tensor(size_t N, size_t C, size_t H, size_t W);
-
-  Tensor(Tensor const& other);
-
-  Tensor& operator=(Tensor const& other);
-
+  Tensor(const Tensor& other);
+  Tensor(Tensor&&) = default;
+  Tensor& operator=(const Tensor& other);
+  Tensor& operator=(Tensor&&) = default;
   ~Tensor();
 
   float* get() { return m_data; }
