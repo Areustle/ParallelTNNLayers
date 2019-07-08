@@ -1,24 +1,22 @@
 #include "Tensor.h"
 
+#include <numeric>
+
 using namespace std;
 
-Tensor::Tensor(size_t N, size_t C, size_t H, size_t W)
-    : N(N)
-    , C(C)
-    , H(H)
-    , W(W)
-    , len(N * C * H * W) {
+Tensor::Tensor(std::initializer_list<int> l)
+    : shape(l) {
+  int len =
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
   cudaMallocManaged(&m_data, len * sizeof(float));
   cudaMemset(&m_data, 0, len);
   cudaDeviceSynchronize();
 }
 
 Tensor::Tensor(Tensor const& other)
-    : N(other.N)
-    , C(other.C)
-    , H(other.H)
-    , W(other.W)
-    , len(other.len) {
+    : shape(other.shape) {
+  int len =
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
   cudaMallocManaged(&m_data, len * sizeof(float));
   cudaMemcpy(
       m_data, other.m_data, len * sizeof(float), cudaMemcpyDeviceToDevice);
@@ -28,13 +26,15 @@ Tensor::Tensor(Tensor const& other)
 Tensor& Tensor::operator=(Tensor const& other) {
   if (this == &other)
     return *this;
-  if (len != other.len) {
+  if (thid.size() != other.size()) {
     delete[] m_data;
-    len = other.len;
-    cudaMallocManaged(&m_data, len * sizeof(float));
+    this.size() = other.size();
+    cudaMallocManaged(&m_data, this.size() * sizeof(float));
   }
-  cudaMemcpy(
-      m_data, other.m_data, len * sizeof(float), cudaMemcpyDeviceToDevice);
+  cudaMemcpy(m_data,
+             other.m_data,
+             this.size() * sizeof(float),
+             cudaMemcpyDeviceToDevice);
   cudaDeviceSynchronize();
   return *this;
 }
@@ -42,6 +42,10 @@ Tensor& Tensor::operator=(Tensor const& other) {
 Tensor::~Tensor() {
   cudaDeviceSynchronize();
   cudaFree(m_data);
+}
+
+Tensor::size() {
+  return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
 }
 
 
@@ -53,9 +57,8 @@ using namespace std;
 
 TEST_CASE("Testing the Tensor Class") {
 
-  const size_t  dN = 1, dC = 1, dH = 1, dW = 4000; //, dF = 16, dKH = 3, dKW = 3;
-  random_device rd;
-  mt19937       gen(rd());
+  random_device               rd;
+  mt19937                     gen(rd());
   uniform_real_distribution<> dis(-1.0, 1.0);
 
   auto random_fill = [&dis, &gen](size_t len, Tensor A) {
@@ -63,7 +66,7 @@ TEST_CASE("Testing the Tensor Class") {
       A[i] = dis(gen);
   };
 
-  Tensor ten(dN, dC, dH, dW);
+  Tensor ten = {4000};
 
   random_fill(ten.size(), ten);
 

@@ -2,27 +2,27 @@
 #define TENSOR_H
 
 #include <cstddef>
+#include <initializer_list>
 #include <memory>
+#include <vector>
+
 
 class Tensor
 {
 public:
-  size_t N;
-  size_t C;
-  size_t H;
-  size_t W;
-  size_t len;
-  float* m_data;
+  float*                 m_data;
+  std::vector<int const> shape;
 
-  Tensor(size_t N, size_t C, size_t H, size_t W);
-  Tensor(const Tensor& other);
+  Tensor(std::initializer_list<int const>);
+  Tensor(Tensor const&);
   Tensor(Tensor&&) = default;
-  Tensor& operator=(const Tensor& other);
+  Tensor& operator =(Tensor const&);
   Tensor& operator=(Tensor&&) = default;
   ~Tensor();
 
   float* get() { return m_data; }
-  size_t size() { return len; }
+  size_t size(); // { return shape.size(); }
+  size_t rank() { return shape.size(); }
 
   float& operator[](size_t const index) { return m_data[index]; }
 };
