@@ -61,14 +61,14 @@ TEST_CASE("Testing the Tensor Class") {
   mt19937                     gen(rd());
   uniform_real_distribution<> dis(-1.0, 1.0);
 
-  auto random_fill = [&dis, &gen](size_t len, Tensor A) {
-    for (size_t i = 0; i < len; ++i)
+  auto random_fill = [&dis, &gen](Tensor A) {
+    for (size_t i = 0; i < A.size(); ++i)
       A[i] = dis(gen);
   };
 
-  Tensor ten = {4000};
+  Tensor ten = { 40 };
 
-  random_fill(ten.size(), ten);
+  random_fill(ten);
 
   Tensor input(ten);
 
