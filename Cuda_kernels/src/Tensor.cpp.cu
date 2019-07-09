@@ -6,16 +6,17 @@ using namespace std;
 
 Tensor::Tensor(std::initializer_list<int> l)
     : shape(l) {
-  int len =
+  const int len =
       std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
   cudaMallocManaged(&m_data, len * sizeof(float));
   cudaMemset(&m_data, 0, len);
   cudaDeviceSynchronize();
 }
 
+
 Tensor::Tensor(Tensor const& other)
     : shape(other.shape) {
-  int len =
+  const int len =
       std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
   cudaMallocManaged(&m_data, len * sizeof(float));
   cudaMemcpy(
@@ -23,28 +24,29 @@ Tensor::Tensor(Tensor const& other)
   cudaDeviceSynchronize();
 }
 
-Tensor& Tensor::operator=(Tensor const& other) {
+
+Tensor& Tensor::operator=(const Tensor& other) {
   if (this == &other)
     return *this;
-  if (thid.size() != other.size()) {
+  if (this->size() != other.size()) {
     delete[] m_data;
-    this.size() = other.size();
-    cudaMallocManaged(&m_data, this.size() * sizeof(float));
+    cudaMallocManaged(&m_data, other.size() * sizeof(float));
   }
   cudaMemcpy(m_data,
              other.m_data,
-             this.size() * sizeof(float),
+             other.size() * sizeof(float),
              cudaMemcpyDeviceToDevice);
   cudaDeviceSynchronize();
   return *this;
 }
+
 
 Tensor::~Tensor() {
   cudaDeviceSynchronize();
   cudaFree(m_data);
 }
 
-Tensor::size() {
+size_t Tensor::size() const {
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
 }
 
@@ -66,10 +68,8 @@ TEST_CASE("Testing the Tensor Class") {
       A[i] = dis(gen);
   };
 
-  Tensor ten = { 40 };
-
+  Tensor ten = { 40, 1, 1 };
   random_fill(ten);
-
   Tensor input(ten);
 
   CHECK(input[0] == doctest::Approx(ten[0]).epsilon(1e-3));
