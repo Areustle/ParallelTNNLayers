@@ -11,9 +11,9 @@ class Tensor
 {
 public:
   float*                 m_data;
-  std::vector<int const> shape;
+  std::vector<int> const shape;
 
-  Tensor(std::initializer_list<int const>);
+  Tensor(std::initializer_list<int>);
   Tensor(Tensor const&);
   Tensor(Tensor&&) = default;
   Tensor& operator =(Tensor const&);
@@ -21,7 +21,7 @@ public:
   ~Tensor();
 
   float* get() { return m_data; }
-  size_t size(); // { return shape.size(); }
+  size_t size() const;
   size_t rank() { return shape.size(); }
 
   float& operator[](size_t const index) { return m_data[index]; }

@@ -3,14 +3,9 @@
 
 #include "Tensor.h"
 #include <cstddef>
+#include <initializer_list>
 
-
-Tensor random_fill(size_t N,
-                   size_t C,
-                   size_t H,
-                   size_t W,
-                   float  lo = -1.0,
-                   float  hi = 1.0);
+Tensor random_fill(std::initializer_list<int> lst, float lo = -1.0, float hi = 1.0);
 
 Tensor cp4recom(Tensor A, Tensor B, Tensor C, Tensor D);
 
