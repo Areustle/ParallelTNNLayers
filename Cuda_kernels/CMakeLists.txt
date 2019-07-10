@@ -16,31 +16,37 @@ target_link_libraries(Tensor PUBLIC doctest)
 target_link_libraries(test_main PRIVATE Tensor)
 
 # ##############################################################################
-# CUDNN_FULL_CONV2d
+# cudnnConv2d
 # ##############################################################################
-add_library(cudnn_full_conv2d SHARED cudnn_full_conv2d.cpp.cu)
+add_library(cudnnConv2d SHARED cudnnConv2d.cpp.cu)
 target_include_directories(
-  cudnn_full_conv2d
+  cudnnConv2d
   PUBLIC $<INSTALL_INTERFACE:include>
          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Cuda_kernels>)
-target_link_libraries(cudnn_full_conv2d PUBLIC cudnn Tensor)
-target_link_libraries(test_main PRIVATE cudnn_full_conv2d)
+target_link_libraries(cudnnConv2d PUBLIC cudnn Tensor)
+target_link_libraries(test_main PRIVATE cudnnConv2d)
 
 # ##############################################################################
-# Conv_Utils
+# Utils
 # ##############################################################################
-add_library(conv_utils SHARED conv_utils.cpp.cu)
+add_library(Utils SHARED Utils.cpp.cu)
 target_include_directories(
-  conv_utils
+  Utils
   PUBLIC $<INSTALL_INTERFACE:include>
          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Cuda_kernels>)
-target_link_libraries(conv_utils PUBLIC Tensor)
-target_link_libraries(test_main PRIVATE conv_utils)
+target_link_libraries(Utils PUBLIC Tensor)
+target_link_libraries(test_main PRIVATE Utils)
 
-# add_library(manual SHARED manual.cpp.cu) target_include_directories(manual
-# PUBLIC $<INSTALL_INTERFACE:include>
-# $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Cuda_kernels>)
-# target_link_libraries(manual PUBLIC Tensor)
+# ##############################################################################
+# Manual
+# ##############################################################################
+add_library(manual SHARED manual.cpp.cu)
+target_include_directories(
+  manual
+  PUBLIC $<INSTALL_INTERFACE:include>
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Cuda_kernels>)
+target_link_libraries(manual PUBLIC Tensor)
+target_link_libraries(test_main PRIVATE manual)
 
 include(CTest)
 

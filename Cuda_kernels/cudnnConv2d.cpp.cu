@@ -1,4 +1,4 @@
-#include "cudnn_full_conv2d.h"
+#include "cudnnConv2d.h"
 #include <cudnn.h>
 #include <iostream>
 
@@ -137,8 +137,8 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
 #include <random>
 
 TEST_CASE("cudnn_full_conv2d test") {
-  Tensor U{ 1, 1, 32, 32 };
-  Tensor K{ 1, 1, 3, 3 };
+  Tensor U{ 1, 4, 32, 32 };
+  Tensor K{ 1, 4, 3, 3 };
 
   std::random_device               rd;
   std::mt19937                     gen(rd());

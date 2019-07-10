@@ -2,6 +2,7 @@
 #define CONV_UTILS_H
 
 #include "Tensor.h"
+
 #include <cstddef>
 #include <initializer_list>
 
