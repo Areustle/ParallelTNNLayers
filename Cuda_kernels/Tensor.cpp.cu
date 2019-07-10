@@ -71,6 +71,8 @@ TEST_CASE("Testing the Tensor Class") {
   random_fill(ten);
   Tensor input(ten);
 
+  CHECK(ten.size() == 40);
+  CHECK(ten.order() == 3);
   CHECK(input[0] == doctest::Approx(ten[0]).epsilon(1e-3));
 
   for (int i = 0; i < ten.size(); ++i) {

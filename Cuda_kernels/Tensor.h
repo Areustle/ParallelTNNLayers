@@ -22,9 +22,8 @@ public:
 
   float* get() { return m_data; }
   size_t size() const;
-  size_t rank() { return shape.size(); }
+  size_t order() { return shape.size(); }
   float& operator[](size_t const index) { return m_data[index]; }
-
 };
 
 #endif /* TENSOR_H */

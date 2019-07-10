@@ -60,13 +60,15 @@ int main(){
   cudaMalloc(&K, (16*16*3*3)*sizeof(float));
 
   const float alpha = 1, beta = 0;
-  for (int i = 0; i<PROFCOUNT; ++i)
+  for (int i = 0; i<PROFCOUNT; ++i){
     cudnnConvolutionForward(cudnn, &alpha,
         input_descriptor, U,
         kernel_descriptor, K,
         convolution_descriptor, convolution_algorithm,
         d_workspace, workspace_bytes, &beta,
         output_descriptor, V);
+    cudaDeviceSynchronize();
+}
 
   cudaFree(U);
   cudaFree(V);
