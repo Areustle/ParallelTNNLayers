@@ -151,7 +151,7 @@ Tensor static_cp4_conv2d(Tensor const U,
                          Tensor const K2,
                          Tensor const K3) {
 
-  Tensor V(1, 16, 32, 32);
+  Tensor V{1, 16, 32, 32};
   dim3   gridDim0(1, 16, 1);
   dim3   blockDim0(32, 1, 16);
 

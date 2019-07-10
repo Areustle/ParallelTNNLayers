@@ -19,6 +19,7 @@ Tensor random_fill(std::initializer_list<int> lst, float lo, float hi) {
 };
 
   /* Tensor cp4recom(Tensor A, Tensor B, Tensor C, Tensor D) { */
+
   /*   size_t rank = A.C; */
   /*   Tensor Out(A.W, B.W, C.W, D.W); */
 
@@ -37,15 +38,15 @@ Tensor random_fill(std::initializer_list<int> lst, float lo, float hi) {
 
 #define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
 #include "cudnn_full_conv2d.h"
-#include "doctest.h"
+#include "../external/doctest/doctest.h"
 #include "manual.h"
 
 TEST_CASE("Conv utils test") {
 
-  Tensor K0{ 1, 6, 1, 16 };
-  Tensor K1{ 1, 6, 1, 3 };
-  Tensor K2{ 1, 6, 1, 3 };
-  Tensor K3{ 1, 6, 1, 16 };
+  Tensor K0{ 6, 16, 1, 1 };
+  Tensor K1{ 6, 1, 3, 1 };
+  Tensor K2{ 6, 1, 1, 3 };
+  Tensor K3{ 16, 6, 1, 1 };
   Tensor U = random_fill({ 1, 16, 32, 32 }, 0, 1);
 
   for (int i = 0; i < K0.size(); ++i) REQUIRE(K0[i] == 0);
@@ -57,8 +58,9 @@ TEST_CASE("Conv utils test") {
   /* CHECK(K.size() == 2304); */
 
   for (int i = 0; i < U.size(); ++i) REQUIRE(U[i] > 0);
-  /* auto U0 = nn_conv2d(U, K0); */
-  /* for (int i = 0; i < U0.size(); ++i) REQUIRE(U0[i] == 0); */
+
+  auto U0 = nn_conv2d(U, K0);
+  for (int i = 0; i < U0.size(); ++i) REQUIRE(U0[i] == 0);
   /* Tensor U1 = nn_conv2d(U0, K1); */
   /* Tensor U2 = nn_conv2d(U1, K2); */
   /* Tensor V1 = nn_conv2d(U2, K3); */
