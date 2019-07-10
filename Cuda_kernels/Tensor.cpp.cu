@@ -52,7 +52,7 @@ size_t Tensor::size() const {
 
 
 #define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
-#include "doctest.h"
+#include "../external/doctest/doctest.h"
 #include <random>
 
 using namespace std;
@@ -64,8 +64,7 @@ TEST_CASE("Testing the Tensor Class") {
   uniform_real_distribution<> dis(-1.0, 1.0);
 
   auto random_fill = [&dis, &gen](Tensor A) {
-    for (size_t i = 0; i < A.size(); ++i)
-      A[i] = dis(gen);
+    for (size_t i = 0; i < A.size(); ++i) A[i] = dis(gen);
   };
 
   Tensor ten = { 40, 1, 1 };

@@ -10,8 +10,8 @@
 class Tensor
 {
 public:
-  float*                 m_data;
-  std::vector<int> const shape;
+  float*           m_data;
+  std::vector<int> shape;
 
   Tensor(std::initializer_list<int>);
   Tensor(Tensor const&);
@@ -23,8 +23,8 @@ public:
   float* get() { return m_data; }
   size_t size() const;
   size_t rank() { return shape.size(); }
-
   float& operator[](size_t const index) { return m_data[index]; }
+
 };
 
 #endif /* TENSOR_H */

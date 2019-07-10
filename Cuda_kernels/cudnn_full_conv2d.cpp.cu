@@ -1,5 +1,6 @@
 #include "cudnn_full_conv2d.h"
 #include <cudnn.h>
+#include <iostream>
 
 #define checkCUDNN(expression)                               \
   {                                                          \
@@ -39,14 +40,14 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   cudnnConvolutionDescriptor_t convolution_descriptor;
   checkCUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
   checkCUDNN(cudnnSetConvolution2dDescriptor(convolution_descriptor,
-                                             1,
-                                             1,
-                                             1,
-                                             1,
-                                             1,
-                                             1,
-                                             CUDNN_CROSS_CORRELATION,
-                                             CUDNN_DATA_FLOAT));
+                                             /*pad_height=*/1,
+                                             /*pad_width=*/1,
+                                             /*vertical_stride=*/1,
+                                             /*horizontal_stride=*/1,
+                                             /*dilation_height=*/1,
+                                             /*dilation_width=*/1,
+                                             /*mode=*/CUDNN_CROSS_CORRELATION,
+                                             /*computeType=*/CUDNN_DATA_FLOAT));
 
   int batch_size{ 0 }, channels{ 0 }, height{ 0 }, width{ 0 };
   checkCUDNN(cudnnGetConvolution2dForwardOutputDim(convolution_descriptor,
@@ -91,15 +92,18 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   void* d_workspace{ nullptr };
   cudaMallocManaged(&d_workspace, workspace_bytes);
 
-  size_t image_bytes = batch_size * channels * height * width * sizeof(float);
+  /* size_t image_bytes = batch_size * channels * height * width *
+   * sizeof(float); */
 
   float* d_input{ nullptr };
-  cudaMalloc(&d_input, image_bytes);
+  cudaMalloc(&d_input, U.size());
   cudaMemcpy(d_input, U.m_data, U.size(), cudaMemcpyHostToDevice);
 
   float* d_output{ nullptr };
-  cudaMalloc(&d_output, image_bytes);
-  cudaMemset(d_output, 0, image_bytes);
+  cudaMalloc(&d_output, U.size());
+  cudaMemset(d_output, 0, U.size());
+
+  Tensor V({ batch_size, channels, height, width });
 
   const float alpha = 1, beta = 0;
   cudnnConvolutionForward(cudnn,
@@ -125,12 +129,11 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   cudnnDestroy(cudnn);
   cudaDeviceSynchronize();
 
-  /* Tensor V(U); */
-  /* return V; */
+  return V;
 }
 
 #define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
-#include "doctest.h"
+#include "../external/doctest/doctest.h"
 #include <random>
 
 TEST_CASE("cudnn_full_conv2d test") {
@@ -142,10 +145,10 @@ TEST_CASE("cudnn_full_conv2d test") {
   std::uniform_real_distribution<> dis(0.1, 1.0);
 
   for (size_t i = 0; i < U.size(); ++i) U[i] = dis(gen);
+  for (int i = 0; i < U.size(); ++i) CHECK(U[i] != 0);
+  for (int i = 0; i < K.size(); ++i) CHECK(K[i] == 0);
 
   auto V = nn_conv2d(U, K);
 
-  for (int i = 0; i < V.size(); ++i) CHECK(U[i] != 0);
-  for (int i = 0; i < V.size(); ++i) CHECK(K[i] == 0);
   for (int i = 0; i < V.size(); ++i) CHECK(V[i] == 0);
 }
