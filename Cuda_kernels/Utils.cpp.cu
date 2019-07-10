@@ -7,35 +7,35 @@ using namespace std;
 
 Tensor random_fill(std::initializer_list<int> lst, float lo, float hi) {
 
-  random_device rd;
-  mt19937 gen(rd());
+  random_device               rd;
+  mt19937                     gen(rd());
   uniform_real_distribution<> dis(lo, hi);
 
   Tensor A(lst);
 
-  for (size_t i = 0; i < A.size(); ++i)
-    A[i] = dis(gen);
+  for (size_t i = 0; i < A.size(); ++i) A[i] = dis(gen);
 
   return A;
 };
 
-Tensor cp4recom(Tensor Kernel0, Tensor Kernel1, Tensor Kernel2, Tensor Kernel3) {
+Tensor
+cp4recom(Tensor Kernel0, Tensor Kernel1, Tensor Kernel2, Tensor Kernel3) {
   const size_t rank = Kernel0.shape[1];
-  const int K0 = Kernel0.shape[0];
-  const int K1 = Kernel1.shape[0];
-  const int K2 = Kernel2.shape[0];
-  const int K3 = Kernel3.shape[0];
-  Tensor Out({K0, K1, K2, K3});
+  const int    K0   = Kernel0.shape[0];
+  const int    K1   = Kernel1.shape[0];
+  const int    K2   = Kernel2.shape[0];
+  const int    K3   = Kernel3.shape[0];
+  Tensor       Out  = { K0, K1, K2, K3 };
 
-  /* 5,2
+  /*
+     2 x 5 (Rows, Cols)
 
-     01
-     23
-     45
-     67
-     89
+     01234
+     56789
 
-     */
+     [r*Cols + c]
+  */
+
   // clang-format off
   for (int r = 0; r < rank; ++r) {
     for (int a = 0; a < K0; ++a)
@@ -43,10 +43,10 @@ Tensor cp4recom(Tensor Kernel0, Tensor Kernel1, Tensor Kernel2, Tensor Kernel3) 
     for (int c = 0; c < K2; ++c)
     for (int d = 0; d < K3; ++d)
       Out[a*K1*K2*K3 + b*K2*K3 + c*K3 + d]
-        += Kernel0[r*K0 + a]
-        * Kernel1[r*K1 + b]
-        * Kernel2[r*K2 + c]
-        * Kernel3[r*K3 + d];
+        += Kernel0[a*rank + r]
+         * Kernel1[b*rank + r]
+         * Kernel2[c*rank + r]
+         * Kernel3[d*rank + r];
   }
   // clang-format on
 
@@ -60,11 +60,11 @@ Tensor cp4recom(Tensor Kernel0, Tensor Kernel1, Tensor Kernel2, Tensor Kernel3) 
 
 TEST_CASE("Utils test") {
 
-  Tensor K0 = random_fill({16, 6});
-  Tensor K1 = random_fill({16, 6});
-  Tensor K2 = random_fill({3, 6});
-  Tensor K3 = random_fill({3, 6});
-  Tensor U = random_fill({1, 16, 32, 32}, 0, 1);
+  Tensor K0 = random_fill({ 16, 6 });
+  Tensor K1 = random_fill({ 16, 6 });
+  Tensor K2 = random_fill({ 3, 6 });
+  Tensor K3 = random_fill({ 3, 6 });
+  Tensor U  = random_fill({ 1, 16, 32, 32 }, 0, 1);
   for (int i = 0; i < U.size(); ++i) REQUIRE(U[i] > 0);
 
   Tensor K = cp4recom(K0, K1, K2, K3);
