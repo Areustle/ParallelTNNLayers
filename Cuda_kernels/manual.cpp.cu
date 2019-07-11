@@ -153,45 +153,8 @@ Tensor static_cp4_conv2d(Tensor const U,
   dim3   gridDim0(1, 16, 1);
   dim3   blockDim0(32, 1, 16);
 
-  cudaDeviceSynchronize();
   default_function_kernel0<<<gridDim0, blockDim0>>>(
       U.m_data, K0.m_data, K1.m_data, K2.m_data, K3.m_data, V.m_data);
-  cudaDeviceSynchronize();
 
   return V;
 }
-
-/* Tensor naive_conv2d(Tensor U, */
-/*                     Tensor Kernel0, */
-/*                     Tensor Kernel1, */
-/*                     Tensor Kernel2, */
-/*                     Tensor Kernel3) { */
-/*   const size_t N = U.shape[0]; */
-/*   const size_t C = U.shape[1]; */
-/*   const size_t H = U.shape[2]; */
-/*   const size_t W = U.shape[3]; */
-
-/*   const size_t rank = Kernel0.shape[1]; */
-/*   const int    K0   = Kernel0.shape[0]; */
-/*   const int    K1   = Kernel1.shape[0]; */
-/*   const int    K2   = Kernel2.shape[0]; */
-/*   const int    K3   = Kernel3.shape[0]; */
-
-/*   Tensor Out({ K0, K1, K2, K3 }); */
-
-/*   // clang-format off */
-/*   for (int r = 0; r < rank; ++r) { */
-/*     for (int n = 0; n < N; ++n) */
-/*     for (int c = 0; c < C; ++c) */
-/*     for (int h = 0; h < H; ++h) */
-/*     for (int w = 0; w < W; ++w) */
-/*     for (int a = 0; a < K0; ++a) */
-/*     for (int b = 0; b < K1; ++b) */
-/*     for (int c = 0; c < K2; ++c) */
-/*     for (int d = 0; d < K3; ++d) */
-
-/*   } */
-/*   // clang-format on */
-
-/*   return Out; */
-/* } */

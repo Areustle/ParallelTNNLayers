@@ -118,7 +118,6 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
                           output_descriptor,
                           V.m_data);
 
-  cudaDeviceSynchronize();
   cudaFree(d_workspace);
   cudnnDestroyTensorDescriptor(input_descriptor);
   cudnnDestroyTensorDescriptor(output_descriptor);
