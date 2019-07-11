@@ -45,15 +45,21 @@ Tensor cp4conv2d(Tensor const Input,
   const int W    = Input.shape[3];
 
   // Zero Padding values
-  const int zpr = (FR - 1) / 2;
-  const int zps = (FS - 1) / 2;
+  const int zph = (FR - 1) / 2;
+  const int zpw = (FS - 1) / 2;
 
   Tensor Out{ N, C, H, W };
-
-  /* dim3   gridDim0(Input.shape[0], 1, 1); */
-  /* dim3   blockDim0(Input.shape[1], Input.shape[2], Input.shape[3]); */
+  Tensor Pad{ N, C, H + zph, W + zpw };
 
   // clang-format off
+  for (int n = 0; n < N; ++n)
+  for (int c = 0; c < C; ++c)
+  for (int h = 0; h < H; ++h)
+  for (int w = 0; w < W; ++w)
+    Pad[n*C*H*W + c*H*W + (h+zph)*W + (w+zpw)]
+      += Input.m_data[n*C*H*W + c*H*W + (h)*W + (w)];
+
+
   for (int n = 0; n < N; ++n)
   for (int c = 0; c < C; ++c)
   for (int h = 0; h < H; ++h)
@@ -62,17 +68,17 @@ Tensor cp4conv2d(Tensor const Input,
   for (int fc = 0; fc < FC; ++fc)
   for (int fr = 0; fr < FR; ++fr)
   for (int fs = 0; fs < FS; ++fs)
-  for (int r = 0; r < rank; ++r) {
-    
+  for (int r = 0; r < rank; ++r)
     Out[n*C*H*W + c*H*W + h*W + w] += 
-      Input.m_data[n*C*H*W + c*H*W + (h+fr)*W + (w+fs)]
+      Pad.m_data[n*C*H*W + c*H*W + (h+fr)*W + (w+fs)]
       * FilterK.m_data[fk*rank + r]
       * FilterC.m_data[fc*rank + r]
       * FilterR.m_data[fr*rank + r]
       * FilterS.m_data[fs*rank + r];
-  }
   // clang-format on
 
+  /* dim3   gridDim0(Input.shape[0], 1, 1); */
+  /* dim3   blockDim0(Input.shape[1], Input.shape[2], Input.shape[3]); */
   /* cp4_base_kernel0<<<gridDim0, blockDim0>>>(Input.m_data, */
   /*                                           FilterK.m_data, */
   /*                                           rank, */
