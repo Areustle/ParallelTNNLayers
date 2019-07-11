@@ -92,16 +92,14 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   void* d_workspace{ nullptr };
   cudaMallocManaged(&d_workspace, workspace_bytes);
 
-  /* size_t image_bytes = batch_size * channels * height * width *
-   * sizeof(float); */
-
   float* d_input{ nullptr };
   cudaMalloc(&d_input, U.size());
   cudaMemcpy(d_input, U.m_data, U.size(), cudaMemcpyHostToDevice);
 
+  size_t out_bytes = batch_size * channels * height * width * sizeof(float);
   float* d_output{ nullptr };
-  cudaMalloc(&d_output, U.size());
-  cudaMemset(d_output, 0, U.size());
+  cudaMalloc(&d_output, out_bytes);
+  cudaMemset(d_output, 0, out_bytes);
 
   Tensor V({ batch_size, channels, height, width });
 
@@ -127,28 +125,6 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   cudnnDestroyFilterDescriptor(kernel_descriptor);
   cudnnDestroyConvolutionDescriptor(convolution_descriptor);
   cudnnDestroy(cudnn);
-  cudaDeviceSynchronize();
 
   return V;
-}
-
-#define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
-#include "../external/doctest/doctest.h"
-#include <random>
-
-TEST_CASE("cudnn_full_conv2d test") {
-  Tensor U{ 1, 4, 32, 32 };
-  Tensor K{ 1, 4, 3, 3 };
-
-  std::random_device               rd;
-  std::mt19937                     gen(rd());
-  std::uniform_real_distribution<> dis(0.1, 1.0);
-
-  for (size_t i = 0; i < U.size(); ++i) U[i] = dis(gen);
-  for (int i = 0; i < U.size(); ++i) CHECK(U[i] != 0);
-  for (int i = 0; i < K.size(); ++i) CHECK(K[i] == 0);
-
-  auto V = nn_conv2d(U, K);
-
-  for (int i = 0; i < V.size(); ++i) CHECK(V[i] == 0);
 }
