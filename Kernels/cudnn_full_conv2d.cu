@@ -68,7 +68,7 @@ int main(){
         d_workspace, workspace_bytes, &beta,
         output_descriptor, V);
     cudaDeviceSynchronize();
-}
+  }
 
   cudaFree(U);
   cudaFree(V);
