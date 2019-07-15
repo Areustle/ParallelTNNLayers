@@ -1,9 +1,76 @@
 #include "cp4Conv2d.h"
 
+__global__ void conv2d_full_kernel(const float *__restrict__ Input,
+                                   const int C,
+                                   const float *__restrict__ Filter,
+                                   const int K,
+                                   const int R,
+                                   const int FRCenter,
+                                   const int S,
+                                   const int FSCenter,
+                                   float *__restrict__ Out) {
+
+  const int n = blockIdx.x;
+
+  const int H = gridDim.y;
+  const int h = blockIdx.y;
+
+  const int W = gridDim.z;
+  const int w = blockIdx.z;
+
+  // clang-format off
+  for (int k = 0; k < K; ++k){
+    float sum = 0.0f;
+    for (int c = 0; c < C; ++c)
+    for (int r = 0; r < R; ++r)
+    for (int s = 0; s < S; ++s){
+
+      const int hIdx = h + (r - FRCenter);
+      const int wIdx = w + (s - FSCenter);
+
+      if(hIdx >= 0 && hIdx < H && wIdx >= 0 && wIdx < W){
+            sum += Input[n*C*H*W + c*H*W + hIdx*W + wIdx]
+            *  Filter[k*C*R*S + c*R*S + r*S + s];
+      }
+
+    }
+  Out[n*C*H*W + k*H*W + h*W + w] = sum;
+  }
+  // clang-format on
+}
+
+Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
+  const int N  = Input.shape[0];
+  const int C  = Input.shape[1];
+  const int H  = Input.shape[2];
+  const int W  = Input.shape[3];
+  const int K = Filter.shape[0];
+  /* const int FC = Filter.shape[1]; */
+  const int R = Filter.shape[2];
+  const int S = Filter.shape[3];
+
+  const int FRCenter = R / 2;
+  const int FSCenter = S / 2;
+
+  Tensor Out{ N, C, H, W };
+
+  dim3 gridDim0(N, H, W);
+  dim3 blockDim0(1, 1, 1);
+  conv2d_full_kernel<<<gridDim0, blockDim0>>>(Input.m_data,
+                                              C,
+                                              Filter.m_data,
+                                              K,
+                                              R,
+                                              FRCenter,
+                                              S,
+                                              FSCenter,
+                                              Out.m_data);
+  return Out;
+}
+
 
 Tensor conv2d_full_cpu(Tensor const Input, Tensor const Filter) {
 
-  // clang-format off
   const int N  = Input.shape[0];
   const int C  = Input.shape[1];
   const int H  = Input.shape[2];
@@ -18,6 +85,7 @@ Tensor conv2d_full_cpu(Tensor const Input, Tensor const Filter) {
 
   Tensor Out{ N, C, H, W };
 
+  // clang-format off
   for (int n = 0; n < N; ++n)
   for (int fk = 0; fk < FK; ++fk)
   for (int h = 0; h < H; ++h)
