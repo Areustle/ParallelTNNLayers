@@ -16,21 +16,25 @@ TEST_CASE("Convolution test") {
   auto K     = cp4recom(K0, K1, K2, K3);
   auto Cudnn = nn_conv2d(U, K);
   auto Hand  = conv2d_full_cpu(U, K);
-  auto Tvm   = static_cp4_conv2d(U, K1, K2, K3, K0);
-  auto HandCp4  = conv2d_cp4_cpu(U, K0, K1, K2, K3);
+  auto Full_gpu  = conv2d_full_gpu(U, K);
+  /* auto Tvm   = static_cp4_conv2d(U, K1, K2, K3, K0); */
+  /* auto HandCp4  = conv2d_cp4_cpu(U, K0, K1, K2, K3); */
 
   // Handwritten Full
   REQUIRE(Cudnn.size() == Hand.size());
   for (int i = 0; i < Cudnn.size(); ++i)
-    REQUIRE(Cudnn[i] == doctest::Approx(Hand[i]).epsilon(1e-4));
-
-  // TVM CP4
-  REQUIRE(Cudnn.size() == Tvm.size());
+    REQUIRE(Cudnn[i] == doctest::Approx(Hand[i]).epsilon(1e-5));
+  REQUIRE(Cudnn.size() == Full_gpu.size());
   for (int i = 0; i < Cudnn.size(); ++i)
-    REQUIRE(Cudnn[i] == doctest::Approx(Tvm[i]).epsilon(1e-4));
+    REQUIRE(Cudnn[i] == doctest::Approx(Full_gpu[i]).epsilon(1e-5));
 
-  // Handwritten CP4
-  REQUIRE(Cudnn.size() == HandCp4.size());
-  for (int i = 0; i < Cudnn.size(); ++i)
-    REQUIRE(Cudnn[i] == doctest::Approx(HandCp4[i]).epsilon(1e-4));
+  /* // TVM CP4 */
+  /* REQUIRE(Cudnn.size() == Tvm.size()); */
+  /* for (int i = 0; i < Cudnn.size(); ++i) */
+  /*   REQUIRE(Cudnn[i] == doctest::Approx(Tvm[i]).epsilon(1e-4)); */
+
+  /* // Handwritten CP4 */
+  /* REQUIRE(Cudnn.size() == HandCp4.size()); */
+  /* for (int i = 0; i < Cudnn.size(); ++i) */
+  /*   REQUIRE(Cudnn[i] == doctest::Approx(HandCp4[i]).epsilon(1e-4)); */
 }
