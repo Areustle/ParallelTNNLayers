@@ -1,4 +1,3 @@
-#include <cudnn.h>
 #include <iostream>
 
 
@@ -90,7 +89,7 @@ void default_function_kernel0(const float* __restrict__ Data,
 
 int main(){
 
-  size_t PROFCOUNT = 100000;
+  size_t PROFCOUNT = 1000;
 
   /* Begin Custom Kernel Profile section */
 

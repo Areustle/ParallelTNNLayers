@@ -1,7 +1,7 @@
 #include "cp4Conv2d.h"
 
 
-__constant__ float *carray[2 << 12];
+__constant__ float *carray[1 << 13];
 
 __global__ void conv2d_full_kernel(const float *__restrict__ Input,
                                    const int C,

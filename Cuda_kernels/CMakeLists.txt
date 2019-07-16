@@ -26,6 +26,7 @@ add_executable(test_main
                test/test_Tensor.cpp.cu
                test/test_Conv.cpp.cu
                test/test_Utils.cpp.cu)
+
 add_executable(bench_conv bench/bench_cp4Conv2d.cpp.cu)
 
 target_link_libraries(test_main
