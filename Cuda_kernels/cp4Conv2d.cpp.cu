@@ -13,28 +13,38 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
                                    const int FSCenter,
                                    float *__restrict__ Out) {
 
+  extern __shared__ float shrd[];
+
   const int n = blockIdx.x;
+  const int H = blockDim.y * gridDim.y;
+  const int h = threadIdx.y + blockIdx.y * blockDim.y;
+  const int W = blockDim.z * gridDim.z;
+  const int w = threadIdx.z + blockIdx.z * blockDim.z;
 
-  const int H = gridDim.y;
-  const int h = blockIdx.y;
+  /* // clang-format off */
+  /* for (int c = 0; c < C; ++c) */
+  /* for (int r = 0; r < R; ++r) */
+  /* for (int s = 0; s < S; ++s){ */
+  /*   const int hIdx = h + (r - FRCenter); */
+  /*   const int wIdx = w + (s - FSCenter); */
 
-  const int W = gridDim.z;
-  const int w = blockIdx.z;
+  /*   if (hIdx >= 0 && hIdx < H && wIdx >= 0 && wIdx < W) */
+  /*     shrd[c*H*W + hIdx*W + wIdx] = */ 
+  /*       Input[n*C*H*W + c*H*W + hIdx*W + wIdx]; */
+  /*   else */
+  /*     shrd[c * H * W + hIdx * W + wIdx] = 0; */
+  /* } */
 
-  // clang-format off
   for (int k = 0; k < K; ++k){
     float sum = 0.0f;
     for (int c = 0; c < C; ++c)
     for (int r = 0; r < R; ++r)
     for (int s = 0; s < S; ++s){
-
       const int hIdx = h + (r - FRCenter);
       const int wIdx = w + (s - FSCenter);
 
-      if(hIdx >= 0 && hIdx < H && wIdx >= 0 && wIdx < W){
-            sum += Input[n*C*H*W + c*H*W + hIdx*W + wIdx]
-            *  Filter[k*C*R*S + c*R*S + r*S + s];
-      }
+      sum += shrd[c*H*W + hIdx*W + wIdx]
+      *  Filter[k*C*R*S + c*R*S + r*S + s];
 
     }
   Out[n*C*H*W + k*H*W + h*W + w] = sum;
@@ -58,10 +68,12 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
 
   Tensor Out{ N, C, H, W };
 
-  dim3 gridDim0(N, H, W);
-  dim3 blockDim0(1, 1, 1);
-  conv2d_full_kernel<<<gridDim0, blockDim0>>>(
+  const dim3   gridDim0(N, H / 4, W / 4);
+  const dim3   blockDim0(1, 4, 4);
+  const size_t shared_mem = (H-1+4) * (W-1+4) * sizeof(float);
+  conv2d_full_kernel<<<gridDim0, blockDim0, shared_mem>>>(
       Input.m_data, C, Filter.m_data, K, R, FRCenter, S, FSCenter, Out.m_data);
+  cudaDeviceSynchronize();
   return Out;
 }
 
