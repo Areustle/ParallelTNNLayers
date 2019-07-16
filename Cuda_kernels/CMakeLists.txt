@@ -25,8 +25,8 @@ add_executable(test_main
                test/test_cudnnConv2d.cpp.cu
                test/test_Tensor.cpp.cu
                test/test_Conv.cpp.cu
-               test/test_Utils.cpp.cu
-               )
+               test/test_Utils.cpp.cu)
+add_executable(bench_conv bench/bench_cp4Conv2d.cpp.cu)
 
 target_link_libraries(test_main
                       PRIVATE doctest
@@ -35,4 +35,7 @@ target_link_libraries(test_main
                               cudnnConv2d
                               hand
                               Tensor)
+
+target_link_libraries(bench_conv PRIVATE Tensor hand)
+
 add_test(test_main test_main)

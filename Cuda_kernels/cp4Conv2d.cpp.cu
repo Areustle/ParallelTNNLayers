@@ -1,5 +1,8 @@
 #include "cp4Conv2d.h"
 
+
+__constant__ float *carray[2 << 12];
+
 __global__ void conv2d_full_kernel(const float *__restrict__ Input,
                                    const int C,
                                    const float *__restrict__ Filter,
@@ -40,10 +43,10 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
 }
 
 Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
-  const int N  = Input.shape[0];
-  const int C  = Input.shape[1];
-  const int H  = Input.shape[2];
-  const int W  = Input.shape[3];
+  const int N = Input.shape[0];
+  const int C = Input.shape[1];
+  const int H = Input.shape[2];
+  const int W = Input.shape[3];
   const int K = Filter.shape[0];
   /* const int FC = Filter.shape[1]; */
   const int R = Filter.shape[2];
@@ -52,19 +55,13 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
   const int FRCenter = R / 2;
   const int FSCenter = S / 2;
 
+
   Tensor Out{ N, C, H, W };
 
   dim3 gridDim0(N, H, W);
   dim3 blockDim0(1, 1, 1);
-  conv2d_full_kernel<<<gridDim0, blockDim0>>>(Input.m_data,
-                                              C,
-                                              Filter.m_data,
-                                              K,
-                                              R,
-                                              FRCenter,
-                                              S,
-                                              FSCenter,
-                                              Out.m_data);
+  conv2d_full_kernel<<<gridDim0, blockDim0>>>(
+      Input.m_data, C, Filter.m_data, K, R, FRCenter, S, FSCenter, Out.m_data);
   return Out;
 }
 
