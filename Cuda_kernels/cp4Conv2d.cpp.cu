@@ -5,12 +5,11 @@ __constant__ float *carray[1 << 13];
 
 __global__ void conv2d_full_kernel(const float *__restrict__ Input,
                                    const int C,
+                                   const int pad,
                                    const float *__restrict__ Filter,
                                    const int K,
                                    const int R,
-                                   const int FRCenter,
                                    const int S,
-                                   const int FSCenter,
                                    float *__restrict__ Out) {
 
   extern __shared__ float shrd[];
@@ -21,58 +20,45 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
   const int W = blockDim.z * gridDim.z;
   const int w = threadIdx.z + blockIdx.z * blockDim.z;
 
-  /* // clang-format off */
-  /* for (int c = 0; c < C; ++c) */
-  /* for (int r = 0; r < R; ++r) */
-  /* for (int s = 0; s < S; ++s){ */
-  /*   const int hIdx = h + (r - FRCenter); */
-  /*   const int wIdx = w + (s - FSCenter); */
-
-  /*   if (hIdx >= 0 && hIdx < H && wIdx >= 0 && wIdx < W) */
-  /*     shrd[c*H*W + hIdx*W + wIdx] = */ 
-  /*       Input[n*C*H*W + c*H*W + hIdx*W + wIdx]; */
-  /*   else */
-  /*     shrd[c * H * W + hIdx * W + wIdx] = 0; */
-  /* } */
-
-  for (int k = 0; k < K; ++k){
+  // clang-format off
+  for (int k = 0; k < K; ++k) {
     float sum = 0.0f;
     for (int c = 0; c < C; ++c)
     for (int r = 0; r < R; ++r)
-    for (int s = 0; s < S; ++s){
-      const int hIdx = h + (r - FRCenter);
-      const int wIdx = w + (s - FSCenter);
-
-      sum += shrd[c*H*W + hIdx*W + wIdx]
-      *  Filter[k*C*R*S + c*R*S + r*S + s];
-
+    for (int s = 0; s < S; ++s) {
+      const int hIdx = h + (r - pad);
+      const int wIdx = w + (s - pad);
+      if (hIdx >= 0 && hIdx < H && wIdx >= 0 && wIdx < W)
+        sum += Input[n*C*H*W + c*H*W + hIdx*W + wIdx]
+               * Filter[k*C*R*S + c*R*S + r*S + s];
     }
-  Out[n*C*H*W + k*H*W + h*W + w] = sum;
+    Out[n*C*H*W + k*H*W + h*W + w] = sum;
   }
   // clang-format on
 }
 
+
 Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
-  const int N = Input.shape[0];
-  const int C = Input.shape[1];
-  const int H = Input.shape[2];
-  const int W = Input.shape[3];
-  const int K = Filter.shape[0];
-  /* const int FC = Filter.shape[1]; */
-  const int R = Filter.shape[2];
-  const int S = Filter.shape[3];
 
-  const int FRCenter = R / 2;
-  const int FSCenter = S / 2;
+  const int N   = Input.shape[0];
+  const int C   = Input.shape[1];
+  const int H   = Input.shape[2];
+  const int W   = Input.shape[3];
+  const int K   = Filter.shape[0];
+  const int FC  = Filter.shape[1];
+  const int R   = Filter.shape[2];
+  const int S   = Filter.shape[3];
+  const int pad = R / 2;
 
+  const int    TPBD = 1;
+  const dim3   gridDim0(N, H / TPBD, W / TPBD);
+  const dim3   blockDim0(1, TPBD, TPBD);
+  const size_t shared_mem = (2 * pad + TPBD) * (2 * pad + TPBD) * sizeof(float);
 
   Tensor Out{ N, C, H, W };
 
-  const dim3   gridDim0(N, H / 4, W / 4);
-  const dim3   blockDim0(1, 4, 4);
-  const size_t shared_mem = (H-1+4) * (W-1+4) * sizeof(float);
   conv2d_full_kernel<<<gridDim0, blockDim0, shared_mem>>>(
-      Input.m_data, C, Filter.m_data, K, R, FRCenter, S, FSCenter, Out.m_data);
+      Input.m_data, C, pad, Filter.m_data, K, R, S, Out.m_data);
   cudaDeviceSynchronize();
   return Out;
 }
