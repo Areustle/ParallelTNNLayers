@@ -42,3 +42,26 @@ cp4recom(Tensor FilterK, Tensor FilterC, Tensor FilterR, Tensor FilterS) {
 
   return Out;
 }
+
+Tensor padNCHW(Tensor A, int pad = 1) {
+  int N = A.shape[0];
+  int C = A.shape[1];
+  int H = A.shape[2];
+  int W = A.shape[3];
+
+  int oH = H + (2 * pad);
+  int oW = W + (2 * pad);
+
+  Tensor Out = { N, C, oH, oW };
+
+  // clang-format off
+  for (int n=0; n<N; ++n)
+  for (int c=0; c<C; ++c)
+  for (int h=0; h<H; ++h)
+  for (int w=0; w<W; ++w)
+    Out[n*C*oH*oW + c*oH*oW + (h+pad)*oW + (w+pad)]
+      = A[n*C*H*W + c*H*W + (h)*W + (w)];
+  // clang-format on
+
+  return Out;
+}

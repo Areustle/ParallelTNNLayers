@@ -1,9 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
 #include "../../external/doctest/doctest.h"
-#include "../cudnnConv2d.h"
-#include "../manual.h"
 #include "../Tensor.h"
 #include "../Utils.h"
+#include "../cudnnConv2d.h"
+#include "../manual.h"
 
 TEST_CASE("Utils test") {
 
@@ -30,4 +30,41 @@ TEST_CASE("Utils test") {
   CHECK(V.shape[2] == 32);
   CHECK(V.shape[3] == 32);
   for (int i = 0; i < V.size(); ++i) REQUIRE(V[i] != 0);
+}
+
+TEST_CASE("Padding test") {
+
+  Tensor U = random_fill({ 3, 4, 5, 6 }, 0, 1);
+  REQUIRE(U.shape[0] == 3);
+  REQUIRE(U.shape[1] == 4);
+  REQUIRE(U.shape[2] == 5);
+  REQUIRE(U.shape[3] == 6);
+
+  Tensor padU = padNCHW(U, 1);
+  REQUIRE(padU.shape[0] == 3);
+  REQUIRE(padU.shape[1] == 4);
+  REQUIRE(padU.shape[2] == 7);
+  REQUIRE(padU.shape[3] == 8);
+
+  int N  = U.shape[0];
+  int C  = U.shape[1];
+  int H  = U.shape[2];
+  int W  = U.shape[3];
+  int oH = padU.shape[2];
+  int oW = padU.shape[3];
+
+
+  // clang-format off
+  for (int n = 0; n < N; ++n)
+  for (int c = 0; c < C; ++c)
+  for (int h = 0; h < oH; ++h)
+    for (int w = 0; w < oW; ++w) {
+      int i = n*C*H*W + c*H*W + (h-1)*W + (w-1);
+      int p = n*C*oH*oW + c*oH*oW + h*oW + w;
+      if (h >= 1 && h < (H+1) && w >= 1 && w < (W+1)) {
+        REQUIRE(padU[p] == doctest::Approx(U[i]));
+      } else {
+        REQUIRE(padU[p] == 0);
+      }
+    }
 }
