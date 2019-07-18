@@ -107,3 +107,4 @@ venv.bak/
 
 compile_commands.json
 _build
+.clangd
