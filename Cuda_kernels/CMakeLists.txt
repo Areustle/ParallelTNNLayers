@@ -5,7 +5,7 @@ add_library(Tensor SHARED Tensor.cpp.cu)
 add_library(Utils SHARED Utils.cpp)
 add_library(cudnnConv2d SHARED cudnnConv2d.cpp.cu)
 add_library(manual SHARED manual.cpp.cu)
-add_library(conv SHARED cp4Conv2d.cpp.cu)
+add_library(conv SHARED conv.cu)
 
 # ##############################################################################
 # Dependencies
