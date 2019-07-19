@@ -4,17 +4,27 @@
 __constant__ float carray[4096];
 
 __global__ void conv2d_full_kernel(const float *__restrict__ Input,
-                                   const float *__restrict__ Filter,
                                    const int pad,
                                    const int R,
                                    const int S,
                                    float *__restrict__ Out) {
 
-  /* extern __shared__ float shrd[]; */
+  extern __shared__ float shrd[];
 
-  /* const int w = blockIdx.x; */
-  /* const int W = gridDim.x; */
-  /* const int h = blockIdx.y; */
+  const int w = threadIdx.x + blockIdx.x * blockDim.x;
+  const int h = threadIdx.y + blockIdx.y * blockDim.y;
+
+  const int oW = blockDim.x * gridDim.x;
+  const int iW = oW + 2 * pad;
+
+  // clang-format off
+  float sum = 0.0f;
+  for (int r = 0; r < R; ++r)
+  for (int s = 0; s < S; ++s)
+    sum += Input[(h+r)*iW + (w+s)] * carray[r*S + s];
+
+  Out[h*oW + w] = sum;
+  // clang-format on
 }
 
 
@@ -27,31 +37,18 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
   const int R = Filter.shape[2];
   const int S = Filter.shape[3];
 
-  /* cudaMemcpyToSymbol(carray, Filter.m_data, sizeof(float) * Filter.size());
-   */
+  cudaMemcpyToSymbol(carray, Filter.m_data, sizeof(float) * Filter.size());
 
-  /* const dim3   gridDim0(W - 2, H - 2); */
-  /* const dim3   blockDim0(1, 1); */
-  /* const size_t shared_mem = 1 * sizeof(float); */
+  const int    d = 16;
+  const dim3   gridDim0(W / d, H / d);
+  const dim3   blockDim0(d, d);
+  const size_t shared_mem = 1 * sizeof(float);
 
   Tensor Out{ N, C, H, W };
 
-  /* conv2d_full_kernel<<<1, 1, shared_mem>>>( */
-  /*     Input.m_data, Filter.m_data, 1, R, S, Out.m_data); */
-  /* cudaDeviceSynchronize(); */
-
-  for (int h = 0; h < H; ++h) {
-    for (int w = 0; w < W; ++w) {
-      float sum = 0.0f;
-      for (int r = 0; r < R; ++r) {
-        for (int s = 0; s < S; ++s) {
-          sum += Input.m_data[(h + r) * (W + 2) + (w + s)]
-                 * Filter.m_data[r * S + s];
-        }
-      }
-      Out.m_data[h * W + w] = sum;
-    }
-  }
+  conv2d_full_kernel<<<gridDim0, blockDim0, shared_mem>>>(
+      Input.m_data, 1, R, S, Out.m_data);
+  cudaDeviceSynchronize();
 
   return Out;
 }
