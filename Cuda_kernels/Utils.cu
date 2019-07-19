@@ -1,6 +1,5 @@
-#include "Utils.h"
+#include "Utils.cuh"
 
-#include "Tensor.h"
 #include <random>
 
 using namespace std;
@@ -13,7 +12,7 @@ Tensor random_fill(std::initializer_list<int> lst, float lo, float hi) {
 
   Tensor A(lst);
 
-  for (size_t i = 0; i < A.size(); ++i) A[i] = dis(gen);
+  for (size_t i = 0; i < A.size(); ++i) A.m_data[i] = dis(gen);
 
   return A;
 };
@@ -33,34 +32,40 @@ cp4recom(Tensor FilterK, Tensor FilterC, Tensor FilterR, Tensor FilterS) {
   for (int c = 0; c < FR; ++c)
   for (int d = 0; d < FS; ++d)
   for (int r = 0; r < rank; ++r)
-    Out[a*FC*FR*FS + b*FR*FS + c*FS + d]
-      += FilterK[a*rank + r]
-       * FilterC[b*rank + r]
-       * FilterR[c*rank + r]
-       * FilterS[d*rank + r];
+    Out.m_data[a*FC*FR*FS + b*FR*FS + c*FS + d]
+      += FilterK.m_data[a*rank + r]
+       * FilterC.m_data[b*rank + r]
+       * FilterR.m_data[c*rank + r]
+       * FilterS.m_data[d*rank + r];
   // clang-format on
 
   return Out;
 }
 
-Tensor padNCHW(Tensor A, int pad = 1) {
-  int N = A.shape[0];
-  int C = A.shape[1];
-  int H = A.shape[2];
-  int W = A.shape[3];
 
-  int oH = H + (2 * pad);
-  int oW = W + (2 * pad);
+Tensor padNCHW(Tensor In, int pad = 1) {
+  int N  = In.shape[0];
+  int C  = In.shape[1];
+  int iH = In.shape[2];
+  int iW = In.shape[3];
+
+  int oH = iH + (2 * pad);
+  int oW = iW + (2 * pad);
 
   Tensor Out = { N, C, oH, oW };
 
   // clang-format off
   for (int n=0; n<N; ++n)
   for (int c=0; c<C; ++c)
-  for (int h=0; h<H; ++h)
-  for (int w=0; w<W; ++w)
-    Out[n*C*oH*oW + c*oH*oW + (h+pad)*oW + (w+pad)]
-      = A[n*C*H*W + c*H*W + (h)*W + (w)];
+  for (int h=0; h<oH; ++h)
+  for (int w=0; w<oW; ++w)
+    if(h>=pad && h<=iH && w>=pad && w<=iW){
+      Out.m_data[n*C*oH*oW + c*oH*oW + h*oW + w]
+        = In.m_data[n*C*iH*iW + c*iH*iW + (h-pad)*iW + (w-pad)];
+    }
+    else{
+      Out.m_data[n*C*oH*oW + c*oH*oW + h*oW + w] = 0;
+    }
   // clang-format on
 
   return Out;

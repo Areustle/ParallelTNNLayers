@@ -1,4 +1,4 @@
-#include "cp4Conv2d.h"
+#include "cp4Conv2d.cuh"
 
 
 __constant__ float carray[1 << 13];

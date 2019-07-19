@@ -1,7 +1,7 @@
 #ifndef CP4CONV2D_H
 #define CP4CONV2D_H
 
-#include "Tensor.h"
+#include "Tensor.cuh"
 
 Tensor conv2d_cp4_cpu(Tensor const U,
                       Tensor const K0,
