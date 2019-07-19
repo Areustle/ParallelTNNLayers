@@ -16,27 +16,31 @@ TEST_CASE("Convolution test") {
   auto U = random_fill({ 1, 1, 32, 32 }, 0, 1);
   auto K = random_fill({ 1, 1, 3, 3 }, 0, 1);
   /* auto K     = cp4recom(K0, K1, K2, K3); */
-  auto Cudnn = nn_conv2d(U, K);
-  /* auto Hand  = conv2d_full_cpu(U, K); */
-  auto Full_gpu = conv2d_full_gpu(U, K);
-  /* auto Tvm   = static_cp4_conv2d(U, K1, K2, K3, K0); */
-  /* auto HandCp4  = conv2d_cp4_cpu(U, K0, K1, K2, K3); */
-
-  // Handwritten Full
-  /* REQUIRE(Cudnn.size() == Hand.size()); */
+  auto Cudnn    = nn_conv2d(U, K);
+  /* auto cpu_full = conv2d_full_cpu(U, K); */
   /* for (int i = 0; i < Cudnn.size(); ++i) */
-  /*   REQUIRE(Cudnn[i] == doctest::Approx(Hand[i]).epsilon(1e-5)); */
+  /*   REQUIRE(Cudnn[i] == doctest::Approx(cpu_full[i]).epsilon(1e-5)); */
+
+  auto padU = padNCHW(U, 1);
+  REQUIRE(padU.size() == 1156);
+  REQUIRE(padU.shape[0] == 1);
+  REQUIRE(padU.shape[1] == 1);
+  REQUIRE(padU.shape[2] == 34);
+  REQUIRE(padU.shape[3] == 34);
+  for (int i = 0; i<34; ++i)
+    REQUIRE(padU.m_data[i] == 0);
+  for (int i = 33*34; i<34*34; ++i)
+    REQUIRE(padU.m_data[i] == 0);
+  for (int i = 0; i<34*34; i+=34){
+    REQUIRE(padU.m_data[i] == 0);
+    REQUIRE(padU.m_data[i+33] == 0);
+  }
+  auto Full_gpu = conv2d_full_gpu(padU, K);
   REQUIRE(Cudnn.size() == Full_gpu.size());
+  REQUIRE(Full_gpu.shape[0] == 1);
+  REQUIRE(Full_gpu.shape[1] == 1);
+  REQUIRE(Full_gpu.shape[2] == 32);
+  REQUIRE(Full_gpu.shape[3] == 32);
   for (int i = 0; i < Cudnn.size(); ++i)
     REQUIRE(Cudnn[i] == doctest::Approx(Full_gpu[i]).epsilon(1e-5));
-
-  /* // TVM CP4 */
-  /* REQUIRE(Cudnn.size() == Tvm.size()); */
-  /* for (int i = 0; i < Cudnn.size(); ++i) */
-  /*   REQUIRE(Cudnn[i] == doctest::Approx(Tvm[i]).epsilon(1e-4)); */
-
-  /* // Handwritten CP4 */
-  /* REQUIRE(Cudnn.size() == HandCp4.size()); */
-  /* for (int i = 0; i < Cudnn.size(); ++i) */
-  /*   REQUIRE(Cudnn[i] == doctest::Approx(HandCp4[i]).epsilon(1e-4)); */
 }
