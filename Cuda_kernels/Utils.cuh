@@ -1,7 +1,7 @@
 #ifndef CONV_UTILS_H
 #define CONV_UTILS_H
 
-#include "Tensor.h"
+#include "Tensor.cuh"
 
 #include <cstddef>
 #include <initializer_list>

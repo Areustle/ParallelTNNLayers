@@ -49,7 +49,7 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
                  * Filter.m_data[r * S + s];
         }
       }
-      Out[h * W + w] = sum;
+      Out.m_data[h * W + w] = sum;
     }
   }
 

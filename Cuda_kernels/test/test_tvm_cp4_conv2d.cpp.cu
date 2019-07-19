@@ -1,9 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
 #include "../../external/doctest/doctest.h"
-#include "../Tensor.h"
-#include "../manual.h"
-#include "../Utils.h"
-#include "../cudnnConv2d.h"
+#include "../Tensor.cuh"
+#include "../manual.cuh"
+#include "../Utils.cuh"
+#include "../cudnnConv2d.cuh"
 
 /* TEST_CASE("Utils test") { */
 

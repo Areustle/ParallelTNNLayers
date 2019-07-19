@@ -1,8 +1,6 @@
 #ifndef CUDAALLOCATOR_H
 #define CUDAALLOCATOR_H
 
-#include <cstddef>
-#include <memory>
 
 class CudaAllocator
 {

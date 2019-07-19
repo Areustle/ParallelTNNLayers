@@ -1,5 +1,4 @@
-#include "Tensor.h"
-#include "manual.h"
+#include "manual.cuh"
 #include <iostream>
 
 __global__ void default_function_kernel0(const float *__restrict__ Data,

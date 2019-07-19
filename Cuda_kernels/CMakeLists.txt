@@ -1,10 +1,10 @@
 # ##############################################################################
 # Libraries
 # ##############################################################################
-add_library(Tensor SHARED Tensor.cpp.cu)
-add_library(Utils SHARED Utils.cpp)
-add_library(cudnnConv2d SHARED cudnnConv2d.cpp.cu)
-add_library(manual SHARED manual.cpp.cu)
+add_library(Tensor SHARED Tensor.cu)
+add_library(Utils SHARED Utils.cu)
+add_library(cudnnConv2d SHARED cudnnConv2d.cu)
+add_library(manual SHARED manual.cu)
 add_library(conv SHARED conv.cu)
 
 # ##############################################################################
@@ -25,7 +25,8 @@ add_executable(test_main
                test/test_cudnnConv2d.cpp.cu
                test/test_Tensor.cpp.cu
                test/test_Conv.cpp.cu
-               test/test_Utils.cpp.cu)
+               test/test_Utils.cpp.cu
+               )
 
 add_executable(bench_conv bench/bench_cp4Conv2d.cpp.cu)
 

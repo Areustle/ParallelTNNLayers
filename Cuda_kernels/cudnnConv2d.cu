@@ -1,4 +1,4 @@
-#include "cudnnConv2d.h"
+#include "cudnnConv2d.cuh"
 #include <cudnn.h>
 #include <iostream>
 

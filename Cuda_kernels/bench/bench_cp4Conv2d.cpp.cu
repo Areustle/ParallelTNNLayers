@@ -1,4 +1,4 @@
-#include "../Tensor.h"
+#include "../Tensor.cuh"
 
 __constant__ float carray[1 << 13];
 

@@ -20,10 +20,9 @@ public:
   Tensor& operator=(Tensor&&) = default;
   ~Tensor();
 
-  float* get() { return m_data; }
   size_t size() const;
   size_t order() { return shape.size(); }
-  float& operator[](size_t const index) { return m_data[index]; }
+  /* float& operator[](size_t const index) { return m_data[index]; } */
 };
 
 #endif /* TENSOR_H */
