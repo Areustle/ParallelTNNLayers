@@ -3,6 +3,7 @@
 
 __constant__ float cFltr[4096];
 
+template<int TileFactor = 1>
 __global__ void conv2d_full_kernel(const float *__restrict__ Input,
                                    const int pad,
                                    const int R,
@@ -24,21 +25,28 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
 
   // Cooperatively load all input segment into our shared memory.
   const int sH = R - 1 + blockDim.y;
-  const int sW = S - 1 + blockDim.x;
+  const int sW = S - 1 + blockDim.x * TileFactor;
 
+  // clang-format off
   for (int j = h; j < sH; j += blockDim.y)
-    for (int i = w; i < sW; i += blockDim.x)
-      shrd[j * sW + i] = Input[j * iW + i];
+  for (int i = w; i < sW; i += blockDim.x)
+    shrd[j * sW + i] = Input[j * iW + i];
   __syncthreads();
 
-  // Perform Convolution from shared memory
-  float sum = 0.0f;
-  for (int r = 0; r < R; ++r)
-    for (int s = 0; s < S; ++s) {
-      sum += shrd[(h + r) * sW + (w + s)] * cFltr[r * S + s];
-    }
+  // Build sum by tiling factor
+  float sum[TileFactor];
+  for (int t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
 
-  Out[((hBlockOff + h) * oW) + (wBlockOff + w)] = sum;
+  // Perform Convolution from shared memory
+  for (int r = 0; r < R; ++r)
+  for (int s = 0; s < S; ++s)
+  for (int t = 0; t < TileFactor; ++t)
+    sum[t] += shrd[(h+r)*sW + w+s+(t*blockDim.x)] * cFltr[r*S + s];
+
+  // populate output array.
+  for (int t = 0; t < TileFactor; ++t)
+    Out[((hBlockOff+h)*oW) + (wBlockOff+w)] = sum[t];
+  // clang-format on
 }
 
 
@@ -62,28 +70,13 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
 
   Tensor Out{ N, C, H, W };
 
-  conv2d_full_kernel<<<gridDim0, blockDim0, shared_mem>>>(
-      Input.m_data, 1, R, S, Out.m_data);
+  conv2d_full_kernel<1>
+      <<<gridDim0, blockDim0, shared_mem>>>(Input.m_data, 1, R, S, Out.m_data);
   cudaDeviceSynchronize();
 
   return Out;
 }
 
-/* // clang-format off */
-/* for (int k = 0; k < K; ++k) { */
-/*   float sum = 0.0f; */
-/*   for (int c = 0; c < C; ++c) */
-/*   for (int r = 0; r < R; ++r) */
-/*   for (int s = 0; s < S; ++s) { */
-/*     const int hIdx = h + (r - pad); */
-/*     const int wIdx = w + (s - pad); */
-/*     if (hIdx >= 0 && hIdx < H && wIdx >= 0 && wIdx < W) */
-/*       sum += Input[n*C*H*W + c*H*W + hIdx*W + wIdx] */
-/*              * Filter[k*C*R*S + c*R*S + r*S + s]; */
-/*   } */
-/*   Out[n*C*H*W + k*H*W + h*W + w] = jum; */
-/* } */
-/* // clang-format on */
 
 Tensor conv2d_full_cpu(Tensor const Input, Tensor const Filter) {
 
