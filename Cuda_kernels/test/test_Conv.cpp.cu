@@ -14,7 +14,7 @@ TEST_CASE("Convolution test") {
   auto K2 = random_fill({ 3, 6 }, -1, 1);
   auto K3 = random_fill({ 3, 6 }, -1, 1);
 
-  int  x = 64;
+  int  x = 32;
   auto U = random_fill({ 1, 1, x, x }, 0, 1);
   auto K = random_fill({ 1, 1, 3, 3 }, 0, 1);
   /* auto K     = cp4recom(K0, K1, K2, K3); */

@@ -1,30 +1,44 @@
 #include "conv.cuh"
 
 
-__constant__ float carray[4096];
+__constant__ float cFltr[4096];
 
 __global__ void conv2d_full_kernel(const float *__restrict__ Input,
                                    const int pad,
                                    const int R,
                                    const int S,
                                    float *__restrict__ Out) {
-
   extern __shared__ float shrd[];
 
-  const int w = threadIdx.x + blockIdx.x * blockDim.x;
-  const int h = threadIdx.y + blockIdx.y * blockDim.y;
+  // Declare useful constants. This should be cleaned up if
+  // Register pressure grows too high.
+  const int w         = threadIdx.x;
+  const int h         = threadIdx.y;
+  const int oW        = blockDim.x * gridDim.x;
+  const int iW        = blockDim.x * gridDim.x + 2 * pad;
+  const int wBlockOff = blockIdx.x * blockDim.x;
+  const int hBlockOff = blockIdx.y * blockDim.y;
 
-  const int oW = blockDim.x * gridDim.x;
-  const int iW = oW + 2 * pad;
+  // Shift the Input pointer to our Region Of Interest
+  Input += hBlockOff * iW + wBlockOff;
 
-  // clang-format off
+  // Cooperatively load all input segment into our shared memory.
+  const int sH = R - 1 + blockDim.y;
+  const int sW = S - 1 + blockDim.x;
+
+  for (int j = h; j < sH; j += blockDim.y)
+    for (int i = w; i < sW; i += blockDim.x)
+      shrd[j * sW + i] = Input[j * iW + i];
+  __syncthreads();
+
+  // Perform Convolution from shared memory
   float sum = 0.0f;
   for (int r = 0; r < R; ++r)
-  for (int s = 0; s < S; ++s)
-    sum += Input[(h+r)*iW + (w+s)] * carray[r*S + s];
+    for (int s = 0; s < S; ++s) {
+      sum += shrd[(h + r) * sW + (w + s)] * cFltr[r * S + s];
+    }
 
-  Out[h*oW + w] = sum;
-  // clang-format on
+  Out[((hBlockOff + h) * oW) + (wBlockOff + w)] = sum;
 }
 
 
@@ -37,12 +51,14 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
   const int R = Filter.shape[2];
   const int S = Filter.shape[3];
 
-  cudaMemcpyToSymbol(carray, Filter.m_data, sizeof(float) * Filter.size());
+  cudaMemcpyToSymbol(cFltr, Filter.m_data, sizeof(float) * Filter.size());
 
-  const int    d = 16;
-  const dim3   gridDim0(W / d, H / d);
-  const dim3   blockDim0(d, d);
-  const size_t shared_mem = 1 * sizeof(float);
+  const int    d          = 8;
+  const size_t shared_mem = H * W * N * C * sizeof(float);
+  /* const int    tile_factor = 2; */
+  /* const dim3   gridDim0(W / (d * tile_factor), H / (d * tile_factor)); */
+  const dim3 gridDim0(W / (d), H / (d));
+  const dim3 blockDim0(d, d);
 
   Tensor Out{ N, C, H, W };
 
