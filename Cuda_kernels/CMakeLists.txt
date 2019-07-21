@@ -38,6 +38,6 @@ target_link_libraries(test_main
                               conv
                               Tensor)
 
-target_link_libraries(bench_conv PRIVATE Tensor conv)
+target_link_libraries(bench_conv PRIVATE Tensor conv Utils)
 
 add_test(test_main test_main)
