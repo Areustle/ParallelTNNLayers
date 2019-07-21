@@ -3,14 +3,14 @@
 
 __constant__ float carray[1 << 13];
 
-__global__ void conv2d_full_kernel(const float *__restrict__ Input,
+__global__ void conv2d_full_kernel(const float* __restrict__ Input,
                                    const int C,
                                    const int pad,
-                                   const float *__restrict__ Filter,
+                                   const float* __restrict__ Filter,
                                    const int K,
                                    const int R,
                                    const int S,
-                                   float *__restrict__ Out) {
+                                   float* __restrict__ Out) {
 
   extern __shared__ float shrd[];
 

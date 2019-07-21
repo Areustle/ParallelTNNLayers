@@ -11,5 +11,3 @@ void CudaAllocator::deallocate(float* p, std::size_t n) {
   cudaDeviceSynchronize();
   cudaFree(p);
 }
-
-

@@ -1,12 +1,12 @@
 #include "manual.cuh"
 #include <iostream>
 
-__global__ void default_function_kernel0(const float *__restrict__ Data,
-                                         const float *__restrict__ K0,
-                                         const float *__restrict__ K1,
-                                         const float *__restrict__ K2,
-                                         const float *__restrict__ K3,
-                                         float *__restrict__ Output) {
+__global__ void default_function_kernel0(const float* __restrict__ Data,
+                                         const float* __restrict__ K0,
+                                         const float* __restrict__ K1,
+                                         const float* __restrict__ K2,
+                                         const float* __restrict__ K3,
+                                         float* __restrict__ Output) {
 
   float            Output_local[2];
   __shared__ float pad_temp_shared[272];
