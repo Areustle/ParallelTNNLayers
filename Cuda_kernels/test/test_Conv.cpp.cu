@@ -9,10 +9,10 @@
 
 TEST_CASE("Convolution test") {
 
-  auto K0 = random_fill({ 16, 6 }, -1, 1);
-  auto K1 = random_fill({ 16, 6 }, -1, 1);
-  auto K2 = random_fill({ 3, 6 }, -1, 1);
-  auto K3 = random_fill({ 3, 6 }, -1, 1);
+  /* auto K0 = random_fill({ 16, 6 }, -1, 1); */
+  /* auto K1 = random_fill({ 16, 6 }, -1, 1); */
+  /* auto K2 = random_fill({ 3, 6 }, -1, 1); */
+  /* auto K3 = random_fill({ 3, 6 }, -1, 1); */
 
   int  x = 32;
   auto U = random_fill({ 1, 1, x, x }, 0, 1);
