@@ -9,9 +9,9 @@
 
 TEST_CASE("Convolution test") {
 
-  int  x = 1024;
-  int  c = 2;
-  int  k = 2;
+  int  x = 32;
+  int  c = 4;
+  int  k = 4;
   int  n = 1;
   auto U = random_fill({ n, c, x, x }, 0, 1);
   auto K = random_fill({ k, c, 3, 3 }, 0, 1);

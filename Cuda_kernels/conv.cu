@@ -16,7 +16,7 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
   // Register pressure grows too high.
   const int w         = threadIdx.x;
   const int h         = threadIdx.y;
-  const int k         = threadIdx.z * blockDim.z + blockIdx.z;
+  const int k         = blockDim.z * blockIdx.z + threadIdx.z;
   const int Bw        = blockDim.x;
   const int Bh        = blockDim.y;
   const int oW        = gridDim.x * blockDim.x * TileFactor;
@@ -25,17 +25,17 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
   const int iH        = gridDim.y * blockDim.y + pad;
   const int hBlockOff = blockIdx.y * blockDim.y;
   const int wBlockOff = blockIdx.x * blockDim.x * TileFactor;
+  const int jEnd      = fH - 1 + Bh;
+  const int iEnd      = fW - 1 + Bw;
+  const int sH        = fH - 1 + Bh;
+  const int sW        = fW - 1 + Bw * TileFactor;
 
   // Shift the Input pointer to our Region Of Interest
   Input += hBlockOff * iW + wBlockOff;
-  Out += hBlockOff * oW + wBlockOff;
+  Out += k * oH * oW + hBlockOff * oW + wBlockOff;
+  // clang-format off
 
   // Cooperatively load all input segment into our shared memory.
-  const int jEnd = fH - 1 + Bh;
-  const int iEnd = fW - 1 + Bw;
-  const int sH   = fH - 1 + Bh;
-  const int sW   = fW - 1 + Bw * TileFactor;
-  // clang-format off
   for (int c = 0; c < C; ++c)
   for (int j = h; j < jEnd; j += Bh)
   for (int i = w; i < iEnd; i += Bw)
@@ -47,7 +47,7 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
 
   // Build sum by tiling factor
   float sum[TileFactor];
-#pragma unroll
+  #pragma unroll
   for (int t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
 
   // Perform Convolution from shared memory
@@ -56,15 +56,15 @@ __global__ void conv2d_full_kernel(const float *__restrict__ Input,
   for (int s = 0; s < fW; ++s)
   #pragma unroll
   for (int t = 0; t < TileFactor; ++t)
-    /* sum[t] += shared_mem[c*sH*sW + (h+r)*sW + (w+s+(t*Bw))] */
-    /*   * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s]; */
-    sum[t] += Input[c*iH*iW + (h+r)*iW + (w+s+(t*Bw))]
-              * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s];
+    sum[t] += shared_mem[c*sH*sW + (h+r)*sW + (w+s+(t*Bw))]
+      * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s];
+    /* sum[t] += Input[c*iH*iW + (h+r)*iW + (w+s+(t*Bw))] */
+    /*           * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s]; */
 
-// populate output array.
-#pragma unroll
+  // populate output array.
+  #pragma unroll
   for (int t = 0; t < TileFactor; ++t)
-    Out[k*oH*oW + h*oW + w + (t*Bw)] = sum[t];
+    Out[h*oW + w + (t*Bw)] = sum[t];
 
   // clang-format on
 }
@@ -85,12 +85,12 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter) {
   cudaMemcpyToSymbol(
       const_filter, Filter.m_data, sizeof(float) * Filter.size());
 
-  static const int tf   = 1;
-  const int        bdim = 1;
+  static const int tf   = 2;
+  const int        bdim = 4;
   const size_t     shared_mem_size =
       C * (fW - 1 + bdim * tf) * (fH - 1 + bdim) * sizeof(float);
-  const dim3 gridDim0(W / (tf * bdim), H / (bdim), FK);
-  const dim3 blockDim0(bdim, bdim, 1);
+  const dim3 gridDim0(W / (tf * bdim), H / (bdim), FK / bdim);
+  const dim3 blockDim0(bdim, bdim, bdim);
 
   conv2d_full_kernel<tf><<<gridDim0, blockDim0, shared_mem_size>>>(
       Input.m_data, 2, fH, fW, C, Out.m_data);
