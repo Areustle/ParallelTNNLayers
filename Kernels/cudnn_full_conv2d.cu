@@ -3,7 +3,7 @@
 
 int main(){
 
-  size_t PROFCOUNT = 100000;
+  size_t PROFCOUNT = 1;
 
   float* U;
   float* V;
