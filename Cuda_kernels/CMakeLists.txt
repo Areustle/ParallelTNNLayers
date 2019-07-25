@@ -31,6 +31,7 @@ add_executable(test_main
                )
 
 add_executable(bench_conv bench/bench_cp4Conv2d.cpp.cu)
+add_executable(bench_shrd bench/bench_shrd.cpp.cu)
 
 target_link_libraries(test_main
                       PRIVATE doctest
@@ -41,5 +42,6 @@ target_link_libraries(test_main
                               Tensor)
 
 target_link_libraries(bench_conv PRIVATE Tensor conv Utils)
+target_link_libraries(bench_shrd PRIVATE Tensor)
 
 add_test(test_main test_main)

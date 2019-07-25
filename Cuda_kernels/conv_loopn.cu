@@ -106,11 +106,11 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
                                  * (fH - 1 + bdim) *    //
                                  sizeof(float);
 
-  const dim3 gridDim0(W / (tf * bdim), H / (bdim), N);
-  const dim3 blockDim0(bdim, bdim, 1);
+  const dim3 gridDim0(W / (tf * bdim), H / (bdim), fK / 4);
+  const dim3 blockDim0(bdim, bdim, 4);
 
   conv2d_full_kernel<tf><<<gridDim0, blockDim0, shared_mem_size>>>(
-      Input.m_data, 2 * pad, fK, C, fH, fW, Out.m_data);
+      Input.m_data, 2 * pad, fH, fW, N, C, Out.m_data);
   cudaDeviceSynchronize();
 
   return Out;
