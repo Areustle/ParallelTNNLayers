@@ -6,6 +6,7 @@ add_library(Utils SHARED Utils.cu)
 add_library(cudnnConv2d SHARED cudnnConv2d.cu)
 add_library(manual SHARED manual.cu)
 add_library(conv SHARED conv.cu)
+add_library(cp4conv SHARED cp4Conv2d.cu)
 
 # ##############################################################################
 # Dependencies
@@ -14,6 +15,7 @@ target_link_libraries(cudnnConv2d PUBLIC cudnn PRIVATE Tensor)
 target_link_libraries(Utils PUBLIC Tensor)
 target_link_libraries(manual PUBLIC Tensor)
 target_link_libraries(conv PUBLIC Tensor)
+target_link_libraries(cp4conv PUBLIC Tensor)
 
 # ##############################################################################
 # Tests
