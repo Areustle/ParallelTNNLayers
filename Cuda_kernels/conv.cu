@@ -2,83 +2,81 @@
 
 __constant__ float const_filter[4096];
 
-template<int TileFactor = 1>
+// The Full convolution kernel.
+template<unsigned TileFactor = 1>
 __global__ void conv2d_full_kernel(const float* __restrict__ Input,
-                                   const int pad,
-                                   const int fK,
-                                   const int fH,
-                                   const int fW,
-                                   const int C,
+                                   const unsigned pad,
+                                   const unsigned fK,
+                                   const unsigned fH,
+                                   const unsigned fW,
+                                   const unsigned C,
                                    float* __restrict__ Out) {
 
   extern __shared__ float shared_mem[];
 
   // Declare useful constants. This should be cleaned up if
   // Register pressure grows too high.
-  const int w         = threadIdx.x;
-  const int h         = threadIdx.y;
-  const int k         = threadIdx.z;
-  const int Bw        = blockDim.x;
-  const int Bh        = blockDim.y;
-  const int oW        = gridDim.x * blockDim.x * TileFactor;
-  const int oH        = gridDim.y * blockDim.y;
-  const int iW        = gridDim.x * blockDim.x * TileFactor + pad;
-  const int iH        = gridDim.y * blockDim.y + pad;
-  const int hBlockOff = blockIdx.y * blockDim.y;
-  const int wBlockOff = blockIdx.x * blockDim.x * TileFactor;
-  const int n         = blockIdx.z;
-  const int jEnd      = fH - 1 + Bh;
-  const int iEnd      = fW - 1 + Bw;
-  const int sH        = fH - 1 + Bh;
-  const int sW        = fW - 1 + Bw * TileFactor;
+  const unsigned n         = blockIdx.z / fK;
+  const unsigned k         = blockIdx.z % fK;
+  const unsigned w         = threadIdx.x;
+  const unsigned h         = threadIdx.y;
+  const unsigned Bw        = blockDim.x;
+  const unsigned Bh        = blockDim.y;
+  const unsigned oW        = gridDim.x * blockDim.x * TileFactor;
+  const unsigned oH        = gridDim.y * blockDim.y;
+  const unsigned iW        = gridDim.x * blockDim.x * TileFactor + pad;
+  const unsigned iH        = gridDim.y * blockDim.y + pad;
+  const unsigned hBlockOff = blockIdx.y * blockDim.y;
+  const unsigned wBlockOff = blockIdx.x * blockDim.x * TileFactor;
+  const unsigned jEnd      = fH - 1 + Bh;
+  const unsigned iEnd      = fW - 1 + Bw;
+  const unsigned sH        = fH - 1 + Bh;
+  const unsigned sW        = fW - 1 + Bw * TileFactor;
 
-  // Shift the Global pointers to our Region Of Interest
+  // Shift the Global pounsigneders to our Region Of unsignederest
   Input += n * C * iH * iW  // batch number offset for this thread
            + hBlockOff * iW // h offset for this thread
            + wBlockOff;     // w offset for this thread
 
   Out += n * fK * oH * oW // batch offset
+         + k * oH * oW    // conv filter offset
          + hBlockOff * oW // h offset
          + wBlockOff;     // w offset
   // clang-format off
 
-  // Cooperatively load all input segment into our shared memory.
-  // 40 us
-  for (int c = k; c < C; c += blockDim.z) // For every channel
-  for (int j = h; j < jEnd; j += Bh)  // For every participating h pixel
-  for (int i = w; i < iEnd; i += Bw)  // For every participating w pixel
+  // Cooperatively load all input segment unsignedo our shared memory.
+  for (unsigned c = 0; c < C; ++c)         // For every channel
+  for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
+  for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
   #pragma unroll
-  for (int t = 0; t < TileFactor; ++t)
+  for (unsigned t = 0; t < TileFactor; ++t)
     shared_mem[c*sH*sW + j*sW + i+(t*Bw)] = Input[c*iH*iW + j*iW + i+(t*Bw)];
 
-  // 2 us
   __syncthreads();
 
-  for (int kIdx = k; kIdx < fK; kIdx += blockDim.z){
-    // Build sum by tiling factor
-    float sum[TileFactor];
-    #pragma unroll
-    for (int t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
+  // Build sum by tiling factor
+  float sum[TileFactor];
+  #pragma unroll
+  for (unsigned t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
 
-    // Perform Convolution from shared memory
-    // 12 us
-    for (int c = 0; c < C; ++c)
-    for (int r = 0; r < fH; ++r)
-    for (int s = 0; s < fW; ++s)
-    #pragma unroll
-    for (int t = 0; t < TileFactor; ++t)
-      sum[t] += shared_mem[c*sH*sW + (h+r)*sW + (w+s+(t*Bw))]
-        * const_filter[kIdx*C*fH*fW + c*fH*fW + r*fW + s];
+  // Perform Convolution from shared memory
+  // currently expect this to have bank conflicts. Requires padding.
+  for (unsigned c = 0; c < C; ++c)
+  for (unsigned r = 0; r < fH; ++r)
+  for (unsigned s = 0; s < fW; ++s)
+  #pragma unroll
+  for (unsigned t = 0; t < TileFactor; ++t)
+    sum[t] += shared_mem[c*sH*sW + (h+r)*sW + (w+s+(t*Bw))]
+      * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s];
 
-    // populate output array.
-    // 27 us
-    #pragma unroll
-    for (int t = 0; t < TileFactor; ++t)
-      Out[kIdx*oH*oW + h*oW + w + (t*Bw)] = sum[t];
-  }
+  // populate output array.
+  #pragma unroll
+  for (unsigned t = 0; t < TileFactor; ++t)
+    Out[h*oW + w+(t*Bw)] = sum[t];
 
   // clang-format on
 }
+
 
 Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
 
@@ -97,17 +95,17 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
       const_filter, Filter.m_data, sizeof(float) * Filter.size());
 
   static const int tf   = 2;
-  const int        bdim = 8;
+  const int        bdim = 16;
   const size_t     smsz = C                  //
                       * (fW - 1 + bdim * tf) //
                       * (fH - 1 + bdim) *    //
                       sizeof(float);
 
-  const dim3 Gdim(W / (bdim * tf), H / (bdim), N);
-  const dim3 Bdim(bdim, bdim, 4);
+  const dim3 Gshp(W / (bdim * tf), H / (bdim), fK * N);
+  const dim3 Bshp(bdim, bdim, 1);
 
   conv2d_full_kernel<tf>
-      <<<Gdim, Bdim, smsz>>>(Input.m_data, 2 * pad, fK, fH, fW, C, Out.m_data);
+      <<<Gshp, Bshp, smsz>>>(Input.m_data, 2 * pad, fK, fH, fW, C, Out.m_data);
   cudaDeviceSynchronize();
 
   return Out;

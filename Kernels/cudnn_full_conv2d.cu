@@ -8,8 +8,16 @@ int main(){
   float* U;
   float* V;
 
-  cudaMalloc(&U, (1*16*32*32)*sizeof(float));
-  cudaMalloc(&V, (1*16*32*32)*sizeof(float));
+  int N = 1;
+  int C = 16;
+  int H = 32;
+  int W = 32;
+  int fK = 16;
+  int fH = 3;
+  int fW = 3;
+
+  cudaMalloc(&U, (N*C*H*W)*sizeof(float));
+  cudaMalloc(&V, (N*fK*H*W)*sizeof(float));
 
   /* Begin cuDNN Full Convolution profile section */
 
@@ -19,15 +27,15 @@ int main(){
   cudnnTensorDescriptor_t input_descriptor;
   cudnnCreateTensorDescriptor(&input_descriptor);
   cudnnSetTensor4dDescriptor(input_descriptor, CUDNN_TENSOR_NCHW,
-                               CUDNN_DATA_FLOAT, 1, 16, 32, 32);
+                               CUDNN_DATA_FLOAT, N, C, H, W);
   cudnnTensorDescriptor_t output_descriptor;
   cudnnCreateTensorDescriptor(&output_descriptor);
   cudnnSetTensor4dDescriptor(output_descriptor, CUDNN_TENSOR_NCHW,
-                               CUDNN_DATA_FLOAT, 1, 16, 32, 32);
+                               CUDNN_DATA_FLOAT, N, fK, H, W);
   cudnnFilterDescriptor_t kernel_descriptor;
   cudnnCreateFilterDescriptor(&kernel_descriptor);
   cudnnSetFilter4dDescriptor(kernel_descriptor, CUDNN_DATA_FLOAT,
-                               CUDNN_TENSOR_NCHW, 16, 16, 3, 3);
+                               CUDNN_TENSOR_NCHW, fK, C, fH, fW);
   cudnnConvolutionDescriptor_t convolution_descriptor;
   cudnnCreateConvolutionDescriptor(&convolution_descriptor);
   cudnnSetConvolution2dDescriptor(convolution_descriptor, 1, 1, 1, 1, 1, 1,
@@ -50,14 +58,12 @@ int main(){
                                            output_descriptor,
                                            convolution_algorithm,
                                            &workspace_bytes);
-  std::cerr << "Workspace size: " << (workspace_bytes / 1048576.0) << "MB"
-            << std::endl;
 
   void* d_workspace;
   cudaMalloc(&d_workspace, workspace_bytes);
 
   void * K;
-  cudaMalloc(&K, (16*16*3*3)*sizeof(float));
+  cudaMalloc(&K, (fK*C*fH*fW)*sizeof(float));
 
   const float alpha = 1, beta = 0;
   for (int i = 0; i<PROFCOUNT; ++i){
