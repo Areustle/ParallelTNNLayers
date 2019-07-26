@@ -4,15 +4,15 @@ __constant__ float const_filter[4096];
 
 template<int TileFactor = 1>
 __global__ void conv2d_cp4_kernel(const float* __restrict__ Input,
-                                  const int Rank,
                                   const int pad,
                                   const int offset_fK,
-                                  const int fK,
                                   const int offset_fC,
-                                  const int fC,
                                   const int offset_fH,
-                                  const int fH,
                                   const int offset_fW,
+                                  const int Rank,
+                                  const int fK,
+                                  const int fC,
+                                  const int fH,
                                   const int fW,
                                   const int N,
                                   const int C,
@@ -66,12 +66,17 @@ __global__ void conv2d_cp4_kernel(const float* __restrict__ Input,
   // Perform Convolution from shared memory
   // currently expect this to have bank conflicts. Requires padding.
   for (unsigned c = 0; c < C; ++c)
-  for (unsigned r = 0; r < fH; ++r)
-  for (unsigned s = 0; s < fW; ++s)
+  for (unsigned fh = 0; fh < fH; ++fh)
+  for (unsigned fw = 0; fw < fW; ++fw)
+  for (unsigned rr = 0; rr < Rank; ++rr)
   #pragma unroll
-  for (unsigned t = 0; t < TileFactor; ++t)
-    sum[t] += shared_mem[c*sH*sW + (h+r)*sW + (w+s+(t*Bw))]
-      * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s];
+  for (unsigned t = 0; t < TileFactor; ++t){
+    sum[t] += shared_mem[c*sH*sW + (h+fh)*sW + (w+fw+(t*Bw))]
+          *  const_filter[offset_fK + k*Rank + rr]
+          *  const_filter[offset_fC + c*Rank + rr]
+          *  const_filter[offset_fH + fh*Rank + rr]
+          *  const_filter[offset_fW + fw*Rank + rr];
+  }
 
   // populate output array.
   #pragma unroll
@@ -102,42 +107,50 @@ Tensor conv2d_cp4_gpu(Tensor const Input,
 
   // Populate GPU constant memory with the 4 filters at an appropriate offset.
   const size_t offset_fK = 0;
-  const size_t offset_fC = offset_fK + sizeof(float) * FilterK.size();
-  const size_t offset_fH = offset_fC + sizeof(float) * FilterC.size();
-  const size_t offset_fW = offset_fH + sizeof(float) * FilterH.size();
-  cudaMemcpyToSymbol(
-      const_filter + offset_fK, FilterK.m_data, sizeof(float) * FilterK.size());
-  cudaMemcpyToSymbol(
-      const_filter + offset_fC, FilterC.m_data, sizeof(float) * FilterC.size());
-  cudaMemcpyToSymbol(
-      const_filter + offset_fH, FilterH.m_data, sizeof(float) * FilterH.size());
-  cudaMemcpyToSymbol(
-      const_filter + offset_fW, FilterW.m_data, sizeof(float) * FilterW.size());
+  const size_t offset_fC = offset_fK + FilterK.size();
+  const size_t offset_fH = offset_fC + FilterC.size();
+  const size_t offset_fW = offset_fH + FilterH.size();
+  cudaMemcpyToSymbol(const_filter,
+                     FilterK.m_data,
+                     sizeof(float) * FilterK.size(),
+                     sizeof(float) * offset_fK);
+  cudaMemcpyToSymbol(const_filter,
+                     FilterC.m_data,
+                     sizeof(float) * FilterC.size(),
+                     sizeof(float) * offset_fC);
+  cudaMemcpyToSymbol(const_filter,
+                     FilterH.m_data,
+                     sizeof(float) * FilterH.size(),
+                     sizeof(float) * offset_fH);
+  cudaMemcpyToSymbol(const_filter,
+                     FilterW.m_data,
+                     sizeof(float) * FilterW.size(),
+                     sizeof(float) * offset_fW);
 
   // Build the kernel launch parameters
-  static const int tf   = 1;                 // Tile Factor
-  const int        bdim = 1;                 // Block Dimension
+  static const int tf   = 2;                 // Tile Factor
+  const int        bdim = 16;                 // Block Dimension
   const size_t     smsz = C                  // Shared Memory size for block
                       * (fW - 1 + bdim * tf) //
                       * (fH - 1 + bdim)      //
                       * sizeof(float);
 
-  const dim3 gD(W / (tf * bdim), H / (bdim), fK / bdim); // Cuda Grid Dimension
-  const dim3 bD(bdim, bdim, bdim);                       // Cuda Block Dimension
+  const dim3 gD(W / (tf * bdim), H / (bdim), fK * N); // Cuda Grid Dimension
+  const dim3 bD(bdim, bdim, 1);                       // Cuda Block Dimension
 
   conv2d_cp4_kernel<tf><<<gD, bD, smsz>>>(Input.m_data, //
                                           2 * pad,      //
+                                          offset_fK,    //
+                                          offset_fC,    //
+                                          offset_fH,    //
+                                          offset_fW,    //
                                           Rank,
-                                          offset_fK, //
-                                          fK,        //
-                                          offset_fC, //
-                                          fC,        //
-                                          offset_fH, //
-                                          fH,        //
-                                          offset_fW, //
-                                          fW,        //
-                                          N,         //
-                                          C,         //
+                                          fK, //
+                                          fC, //
+                                          fH, //
+                                          fW, //
+                                          N,  //
+                                          C,  //
                                           Out.m_data);
   cudaDeviceSynchronize();
 
@@ -148,47 +161,40 @@ Tensor conv2d_cp4_cpu(Tensor const Input,
                       Tensor const FilterK,
                       Tensor const FilterC,
                       Tensor const FilterR,
-                      Tensor const FilterS) {
+                      Tensor const FilterS,
+                      int          pad) {
 
   const int N    = Input.shape[0];
   const int C    = Input.shape[1];
-  const int H    = Input.shape[2];
-  const int W    = Input.shape[3];
+  const int iH   = Input.shape[2];
+  const int oH   = iH - 2 * pad;
+  const int iW   = Input.shape[3];
+  const int oW   = iW - 2 * pad;
   const int Rank = FilterK.shape[1];
-  const int FK   = FilterK.shape[0];
-  const int FC   = FilterC.shape[0];
-  const int FR   = FilterR.shape[0];
-  const int FS   = FilterS.shape[0];
+  const int fK   = FilterK.shape[0];
+  const int fC   = FilterC.shape[0];
+  const int fH   = FilterR.shape[0];
+  const int fW   = FilterS.shape[0];
 
-  const int FRCenter = FR / 2;
-  const int FSCenter = FS / 2;
-
-  Tensor Out{ N, C, H, W };
+  Tensor Out{ N, C, oH, oW };
 
   // clang-format off
   for (int n = 0; n < N; ++n)
-  for (int fk = 0; fk < FK; ++fk)
-  for (int h = 0; h < H; ++h)
-  for (int w = 0; w < W; ++w){
+  for (int k = 0; k < fK; ++k)
+  for (int h = 0; h < oH; ++h)
+  for (int w = 0; w < oW; ++w){
     float sum = 0.0f;
     for (int c = 0; c < C; ++c)
     for (int rr = 0; rr < Rank; ++rr)
-    for (int fr = 0; fr < FR; ++fr)
-    for (int fs = 0; fs < FS; ++fs){
-
-      const int hIdx = h + (fr - FRCenter);
-      const int wIdx = w + (fs - FSCenter);
-
-      if(hIdx >= 0 && hIdx < H && wIdx >= 0 && wIdx < W){
-            sum += Input.m_data[n*C*H*W + c*H*W + hIdx*W + wIdx]
-            *  FilterK.m_data[fk*Rank + rr]
-            *  FilterC.m_data[c*Rank + rr]
-            *  FilterR.m_data[fr*Rank + rr]
-            *  FilterS.m_data[fs*Rank + rr];
-      }
-
+    for (int fh = 0; fh < fH; ++fh)
+    for (int fw = 0; fw < fW; ++fw){
+      sum += Input.m_data[n*C*iH*iW + c*iH*iW + (h+fh)*iW + w+fw]
+      *  FilterK.m_data[k*Rank + rr]
+      *  FilterC.m_data[c*Rank + rr]
+      *  FilterR.m_data[fh*Rank + rr]
+      *  FilterS.m_data[fw*Rank + rr];
     }
-    Out.m_data[n*C*H*W + fk*H*W + h*W + w] = sum;
+    Out.m_data[n*C*oH*oW + k*oH*oW + h*oW + w] = sum;
   }
   // clang-format on
   return Out;
