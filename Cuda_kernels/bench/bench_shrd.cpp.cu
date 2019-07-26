@@ -1,5 +1,3 @@
-#include "../Tensor.cuh"
-
 
 __global__ void kernel(const float* __restrict__ Input){
 
