@@ -26,10 +26,9 @@ add_executable(test_main
                test/test_main.cpp.cu
                test/test_cudnnConv2d.cpp.cu
                test/test_Tensor.cpp.cu
-               # test/test_Conv.cpp.cu
-               test/test_cp4Conv.cpp.cu
-               test/test_Utils.cpp.cu
-               )
+               test/test_Conv.cpp.cu
+               # test/test_cp4Conv.cpp.cu
+               test/test_Utils.cpp.cu)
 
 add_executable(bench_conv bench/bench_conv2d.cpp.cu)
 add_executable(bench_cp4conv bench/bench_cp4Conv2d.cpp.cu)
@@ -41,6 +40,9 @@ target_link_libraries(test_main
                               Utils
                               cudnnConv2d
                               cp4conv
+                              conv
                               Tensor)
+
+target_link_libraries(bench_conv conv)
 
 add_test(test_main test_main)

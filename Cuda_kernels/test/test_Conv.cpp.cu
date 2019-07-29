@@ -9,15 +9,13 @@
 
 TEST_CASE("Convolution test") {
 
-  int  x = 32;
-  int  c = 16;
-  int  k = 16;
-  int  n = 1;
-  Tensor U = { n, c, x, x };
-  random_fill(U, 0);
-  Tensor K = { k, c, 3, 3 };
-  random_fill(K, 0);
-  auto Cudnn = nn_conv2d(U, K);
+  int    x     = 32;
+  int    c     = 16;
+  int    k     = 16;
+  int    n     = 1;
+  Tensor U     = random_fill({ n, c, x, x }, 0, 1);
+  Tensor K     = random_fill({ k, c, 3, 3 }, 0, 1);
+  auto   Cudnn = nn_conv2d(U, K);
 
   REQUIRE(U.size() == (n * c * x * x));
   REQUIRE(U.shape[0] == n);
