@@ -24,8 +24,8 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
   const unsigned Bh        = blockDim.y;
   const unsigned oW        = gridDim.x * blockDim.x * TileFactor;
   const unsigned oH        = gridDim.y * blockDim.y;
-  const unsigned iW        = gridDim.x * blockDim.x * TileFactor + pad;
-  const unsigned iH        = gridDim.y * blockDim.y + pad;
+  const unsigned iW        = gridDim.x * blockDim.x * TileFactor;
+  const unsigned iH        = gridDim.y * blockDim.y;
   const unsigned hBlockOff = blockIdx.y * blockDim.y;
   const unsigned wBlockOff = blockIdx.x * blockDim.x * TileFactor;
   const unsigned jEnd      = fH - 1 + Bh;
@@ -34,9 +34,7 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
   const unsigned sW        = fW - 1 + Bw * TileFactor;
 
   // Shift the Global pounsigneders to our Region Of unsignederest
-  Input += n * C * iH * iW  // batch number offset for this thread
-           + hBlockOff * iW // h offset for this thread
-           + wBlockOff;     // w offset for this thread
+  Input += n * C * iH * iW;  // batch number offset for this thread
 
   Out += n * fK * oH * oW // batch offset
          + k * oH * oW    // conv filter offset
@@ -44,13 +42,19 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
          + wBlockOff;     // w offset
   // clang-format off
 
-  // Cooperatively load all input segment unsignedo our shared memory.
+  // Cooperatively load all input segment into our shared memory and pad it.
   for (unsigned c = 0; c < C; ++c)         // For every channel
   for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
   for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
   #pragma unroll
   for (unsigned t = 0; t < TileFactor; ++t)
-    shared_mem[c*sH*sW + j*sW + i+(t*Bw)] = Input[c*iH*iW + j*iW + i+(t*Bw)];
+    shared_mem[c*sH*sW + j*sW + i+(t*Bw)]
+      = (j+hBlockOff >= pad
+          && j+hBlockOff < iH+pad
+          && i+wBlockOff >= pad
+          && i+wBlockOff+(t*Bw) < iW+pad)
+      ?(Input[c*iH*iW + (j+hBlockOff-pad)*iW + (i+wBlockOff-pad)+(t*Bw)])
+      :(0.0f);
 
   __syncthreads();
 
@@ -82,8 +86,8 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
 
   const int N  = Input.shape[0];
   const int C  = Input.shape[1];
-  const int H  = Input.shape[2] - 2 * pad;
-  const int W  = Input.shape[3] - 2 * pad;
+  const int H  = Input.shape[2];
+  const int W  = Input.shape[3];
   const int fK = Filter.shape[0];
   const int FC = Filter.shape[1];
   const int fH = Filter.shape[2];
@@ -94,18 +98,18 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
   cudaMemcpyToSymbol(
       const_filter, Filter.m_data, sizeof(float) * Filter.size());
 
-  static const int tf   = 2;
-  const int        bdim = 16;
+  static const int tf   = 4;
+  const int        bdim = 8;
   const size_t     smsz = C                  //
                       * (fW - 1 + bdim * tf) //
                       * (fH - 1 + bdim) *    //
                       sizeof(float);
 
   const dim3 Gshp(W / (bdim * tf), H / (bdim), fK * N);
-  const dim3 Bshp(bdim, bdim, 1);
+  const dim3 Bshp(bdim, bdim, bdim);
 
   conv2d_full_kernel<tf>
-      <<<Gshp, Bshp, smsz>>>(Input.m_data, 2 * pad, fK, fH, fW, C, Out.m_data);
+      <<<Gshp, Bshp, smsz>>>(Input.m_data, pad, fK, fH, fW, C, Out.m_data);
   cudaDeviceSynchronize();
 
   return Out;
