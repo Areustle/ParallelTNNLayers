@@ -26,15 +26,15 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
   const unsigned oH        = gridDim.y * blockDim.y;
   const unsigned iW        = gridDim.x * blockDim.x * TileFactor;
   const unsigned iH        = gridDim.y * blockDim.y;
-  const unsigned hBlockOff = blockIdx.y * blockDim.y;
   const unsigned wBlockOff = blockIdx.x * blockDim.x * TileFactor;
+  const unsigned hBlockOff = blockIdx.y * blockDim.y;
   const unsigned jEnd      = fH - 1 + Bh;
   const unsigned iEnd      = fW - 1 + Bw;
   const unsigned sH        = fH - 1 + Bh;
   const unsigned sW        = fW - 1 + Bw * TileFactor;
 
-  // Shift the Global pounsigneders to our Region Of unsignederest
-  Input += n * C * iH * iW;  // batch number offset for this thread
+  // Shift the Global pointers to our Region Of interest
+  Input += n * C * iH * iW; // batch number offset for this thread
 
   Out += n * fK * oH * oW // batch offset
          + k * oH * oW    // conv filter offset
@@ -81,22 +81,20 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
   // clang-format on
 }
 
+void cuda_conv2d_full_gpu(const float* In,
+                          const int    N,
+                          const int    C,
+                          const int    H,
+                          const int    W,
+                          const int    pad,
+                          const float* Filter,
+                          const int    fK,
+                          const int    fC,
+                          const int    fH,
+                          const int    fW,
+                          float*       Out) {
 
-Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
-
-  const int N  = Input.shape[0];
-  const int C  = Input.shape[1];
-  const int H  = Input.shape[2];
-  const int W  = Input.shape[3];
-  const int fK = Filter.shape[0];
-  const int FC = Filter.shape[1];
-  const int fH = Filter.shape[2];
-  const int fW = Filter.shape[3];
-
-  Tensor Out{ N, fK, H, W };
-
-  cudaMemcpyToSymbol(
-      const_filter, Filter.m_data, sizeof(float) * Filter.size());
+  cudaMemcpyToSymbol(const_filter, Filter, sizeof(float) * fK * fC * fH * fW);
 
   static const int tf   = 4;
   const int        bdim = 8;
@@ -108,11 +106,34 @@ Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
   const dim3 Gshp(W / (bdim * tf), H / (bdim), fK * N);
   const dim3 Bshp(bdim, bdim, bdim);
 
-  conv2d_full_kernel<tf>
-      <<<Gshp, Bshp, smsz>>>(Input.m_data, pad, fK, fH, fW, C, Out.m_data);
+  conv2d_full_kernel<tf><<<Gshp, Bshp, smsz>>>(In, pad, fK, fH, fW, C, Out);
   cudaDeviceSynchronize();
+}
 
-  return Out;
+Tensor conv2d_full_gpu(Tensor const Input, Tensor const Filter, int pad) {
+
+  const int N  = Input.shape[0];
+  const int C  = Input.shape[1];
+  const int H  = Input.shape[2];
+  const int W  = Input.shape[3];
+  const int fK = Filter.shape[0];
+  const int fC = Filter.shape[1];
+  const int fH = Filter.shape[2];
+  const int fW = Filter.shape[3];
+  Tensor    Output{ N, fK, H, W };
+  cuda_conv2d_full_gpu(Input.m_data,
+                       N,
+                       C,
+                       H,
+                       W,
+                       pad,
+                       Filter.m_data,
+                       fK,
+                       fC,
+                       fH,
+                       fW,
+                       Output.m_data);
+  return Output;
 }
 
 Tensor conv2d_full_cpu(Tensor const Input, Tensor const Filter) {
