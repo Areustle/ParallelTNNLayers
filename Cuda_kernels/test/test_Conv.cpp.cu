@@ -13,30 +13,19 @@ TEST_CASE("Convolution test") {
   int  c = 16;
   int  k = 16;
   int  n = 1;
-  auto U = random_fill({ n, c, x, x }, 0, 1);
-  auto K = random_fill({ k, c, 3, 3 }, 0, 1);
-  /* auto K     = cp4recom(K0, K1, K2, K3); */
+  Tensor U = { n, c, x, x };
+  random_fill(U, 0);
+  Tensor K = { k, c, 3, 3 };
+  random_fill(K, 0);
   auto Cudnn = nn_conv2d(U, K);
-  /* auto cpu_full = conv2d_full_cpu(U, K); */
-  /* for (int i = 0; i < Cudnn.size(); ++i) */
-  /*   REQUIRE(Cudnn[i] == doctest::Approx(cpu_full[i]).epsilon(1e-5)); */
 
-  auto padU = padNCHW(U, 1);
+  REQUIRE(U.size() == (n * c * x * x));
+  REQUIRE(U.shape[0] == n);
+  REQUIRE(U.shape[1] == c);
+  REQUIRE(U.shape[2] == x);
+  REQUIRE(U.shape[3] == x);
 
-  REQUIRE(padU.size() == (n * c * (x + 2) * (x + 2)));
-  REQUIRE(padU.shape[0] == n);
-  REQUIRE(padU.shape[1] == c);
-  REQUIRE(padU.shape[2] == x + 2);
-  REQUIRE(padU.shape[3] == x + 2);
-  /* for (int i = 0; i < (x + 2); ++i) REQUIRE(padU.m_data[i] == 0); */
-  /* for (int i = (x + 1) * (x + 2); i < (x + 2) * (x + 2); ++i) */
-  /*   REQUIRE(padU.m_data[i] == 0); */
-  /* for (int i = 0; i < (x + 2) * (x + 2); i += (x + 2)) { */
-  /*   REQUIRE(padU.m_data[i] == 0); */
-  /*   REQUIRE(padU.m_data[i + (x + 1)] == 0); */
-  /* } */
-
-  auto Full_gpu = conv2d_full_gpu(padU, K, 1);
+  auto Full_gpu = conv2d_full_gpu(U, K, 1);
 
   REQUIRE(Cudnn.size() == Full_gpu.size());
   REQUIRE(Full_gpu.shape[0] == n);
