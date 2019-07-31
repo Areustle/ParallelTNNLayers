@@ -31,7 +31,9 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
   const unsigned jEnd      = fH - 1 + Bh;
   const unsigned iEnd      = fW - 1 + Bw;
   const unsigned sH        = fH - 1 + Bh;
-  const unsigned sW        = fW - 1 + Bw * TileFactor;
+  const unsigned sW        = (((fW - 1) / 32) + ((fW - 1) % 32 != 0)) // ceil
+                          * 32
+                      + Bw * TileFactor;
 
   // Shift the Global pointers to our Region Of interest
   Input += n * C * iH * iW; // batch number offset for this thread
@@ -53,7 +55,9 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
           && j+hBlockOff < iH+pad
           && i+wBlockOff >= pad
           && i+wBlockOff+(t*Bw) < iW+pad)
-      ?(Input[c*iH*iW + (j+hBlockOff-pad)*iW + (i+wBlockOff-pad)+(t*Bw)])
+      ?(Input[c*iH*iW                      // Channel
+              + (j+hBlockOff-pad)*iW       // Height
+              + (i+wBlockOff-pad)+(t*Bw)]) // Width
       :(0.0f);
 
   __syncthreads();
@@ -98,10 +102,11 @@ void cuda_conv2d_full_gpu(const float* In,
 
   static const int tf   = 4;
   const int        bdim = 8;
-  const size_t     smsz = C                  //
-                      * (fW - 1 + bdim * tf) //
-                      * (fH - 1 + bdim) *    //
-                      sizeof(float);
+  const size_t     smsz =
+      C //
+      * ((((fW - 1) / 32) + ((fW - 1) % 32 != 0)) * 32 + bdim * tf)
+      * (fH - 1 + bdim) * //
+      sizeof(float);
 
   const dim3 Gshp(W / (bdim * tf), H / (bdim), fK * N);
   const dim3 Bshp(bdim, bdim, bdim);
