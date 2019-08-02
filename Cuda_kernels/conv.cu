@@ -5,84 +5,96 @@ __constant__ float const_filter[4096];
 // The Full convolution kernel.
 template<unsigned TileFactor = 1>
 __global__ void conv2d_full_kernel(const float* __restrict__ Input,
+                                   const unsigned N,
+                                   const unsigned C,
+                                   const unsigned H,
+                                   const unsigned W,
                                    const unsigned pad,
                                    const unsigned fK,
                                    const unsigned fH,
                                    const unsigned fW,
-                                   const unsigned C,
                                    float* __restrict__ Out) {
 
   extern __shared__ float shared_mem[];
 
   // Declare useful constants. This should be cleaned up if
   // Register pressure grows too high.
-  const unsigned n         = blockIdx.z / fK;
-  const unsigned k         = blockIdx.z % fK;
+  /* const unsigned oW        = gridDim.x * blockDim.x * TileFactor; */
+  /* const unsigned oH        = gridDim.y * blockDim.y; */
+  /* const unsigned iW        = gridDim.x * blockDim.x * TileFactor; */
+  /* const unsigned iH        = gridDim.y * blockDim.y; */
+  const unsigned oW = W, iW = W;
+  const unsigned oH = H, iH = H;
   const unsigned w         = threadIdx.x;
   const unsigned h         = threadIdx.y;
   const unsigned Bw        = blockDim.x;
   const unsigned Bh        = blockDim.y;
-  const unsigned oW        = gridDim.x * blockDim.x * TileFactor;
-  const unsigned oH        = gridDim.y * blockDim.y;
-  const unsigned iW        = gridDim.x * blockDim.x * TileFactor;
-  const unsigned iH        = gridDim.y * blockDim.y;
   const unsigned wBlockOff = blockIdx.x * blockDim.x * TileFactor;
   const unsigned hBlockOff = blockIdx.y * blockDim.y;
   const unsigned jEnd      = fH - 1 + Bh;
   const unsigned iEnd      = fW - 1 + Bw;
   const unsigned sH        = fH - 1 + Bh;
-  const unsigned sW        = (((fW - 1) / 32) + ((fW - 1) % 32 != 0)) // ceil
-                          * 32
-                      + Bw * TileFactor;
+  const unsigned sW        = fH - 1 + Bw * TileFactor;
 
-  // Shift the Global pointers to our Region Of interest
-  Input += n * C * iH * iW; // batch number offset for this thread
+  // Grid Stride loop to handle overlarge batch (n) and filter (k) sizes
+  for (int n = blockIdx.z / fK; n < N; n += blockDim.z * gridDim.z) {
+    for (int k = blockIdx.z % fK; k < fK; k += blockDim.z * gridDim.z) {
+      // Shift the Global pointers to our Region Of interest
+      const float* iPtr =
+          Input + n * C * iH * iW; // batch number offset for this thread
 
-  Out += n * fK * oH * oW // batch offset
-         + k * oH * oW    // conv filter offset
-         + hBlockOff * oW // h offset
-         + wBlockOff;     // w offset
-  // clang-format off
+      float* oPtr = Out + n * fK * oH * oW // batch offset
+                    + k * oH * oW          // conv filter offset
+                    + hBlockOff * oW       // h offset
+                    + wBlockOff;           // w offset
 
-  // Cooperatively load all input segment into our shared memory and pad it.
-  for (unsigned c = 0; c < C; ++c)         // For every channel
-  for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
-  for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
-  #pragma unroll
-  for (unsigned t = 0; t < TileFactor; ++t)
-    shared_mem[c*sH*sW + j*sW + i+(t*Bw)]
-      = (j+hBlockOff >= pad
-          && j+hBlockOff < iH+pad
-          && i+wBlockOff >= pad
-          && i+wBlockOff+(t*Bw) < iW+pad)
-      ?(Input[c*iH*iW                      // Channel
-              + (j+hBlockOff-pad)*iW       // Height
-              + (i+wBlockOff-pad)+(t*Bw)]) // Width
-      :(0.0f);
+      // clang-format off
+      // Cooperatively load all input segment into our shared memory and pad it.
+      for (unsigned c = 0; c < C; ++c)         // For every channel
+      for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
+      for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
+      #pragma unroll
+      for (unsigned t = 0; t < TileFactor; ++t)
+        shared_mem[c*sH*sW + j*sW + i+(t*Bw)]
+          = (j+hBlockOff >= pad
+              && j+hBlockOff < iH+pad
+              && i+wBlockOff >= pad
+              && i+wBlockOff+(t*Bw) < iW+pad)
+          ?(iPtr[c*iH*iW                      // Channel
+                  + (j+hBlockOff-pad)*iW       // Height
+                  + (i+wBlockOff-pad)+(t*Bw)]) // Width
+          :(0.0f);
 
-  __syncthreads();
+      __syncthreads();
 
-  // Build sum by tiling factor
-  float sum[TileFactor];
-  #pragma unroll
-  for (unsigned t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
+      // Handle block / input size mismatch. This occurs here and not earlier
+      // So that these threads can still participate in the cooperative shared
+      // Memory load.
+      if (hBlockOff + h >= oH) continue;
+      if (wBlockOff + w >= oW) continue;
 
-  // Perform Convolution from shared memory
-  // currently expect this to have bank conflicts. Requires padding.
-  for (unsigned c = 0; c < C; ++c)
-  for (unsigned r = 0; r < fH; ++r)
-  for (unsigned s = 0; s < fW; ++s)
-  #pragma unroll
-  for (unsigned t = 0; t < TileFactor; ++t)
-    sum[t] += shared_mem[c*sH*sW + (h+r)*sW + (w+s+(t*Bw))]
-      * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s];
+      // Build sum by tiling factor
+      float sum[TileFactor];
+      #pragma unroll
+      for (unsigned t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
 
-  // populate output array.
-  #pragma unroll
-  for (unsigned t = 0; t < TileFactor; ++t)
-    Out[h*oW + w+(t*Bw)] = sum[t];
+      // Perform Convolution from shared memory
+      // currently expect this to have bank conflicts. Requires padding.
+      for (unsigned c = 0; c < C; ++c)
+      for (unsigned r = 0; r < fH; ++r)
+      for (unsigned s = 0; s < fW; ++s)
+      #pragma unroll
+      for (unsigned t = 0; t < TileFactor; ++t)
+        sum[t] += shared_mem[c*sH*sW + (h+r)*sW + (w+s+(t*Bw))]
+          * const_filter[k*C*fH*fW + c*fH*fW + r*fW + s];
 
-  // clang-format on
+      // populate output array.
+      #pragma unroll
+      for (unsigned t = 0; t < TileFactor; ++t)
+        oPtr[h*oW + w+(t*Bw)] = sum[t];
+      // clang-format on
+    }
+  }
 }
 
 void cuda_conv2d_full_gpu(const float* In,
@@ -98,20 +110,29 @@ void cuda_conv2d_full_gpu(const float* In,
                           const int    fW,
                           float*       Out) {
 
+  // This implementation uses the GPU's constant memory as a fast cache to
+  // hold the relatively small and unchanging filter weights. These must all
+  // be accessed uniformly by the threads in a block for parallel execution.
   cudaMemcpyToSymbol(const_filter, Filter, sizeof(float) * fK * fC * fH * fW);
 
-  static const int tf   = 4;
-  const int        bdim = 8;
-  const size_t     smsz =
+  const unsigned        hdim = 16;
+  const unsigned        wdim = 16;
+  static const unsigned tf   = 1;
+  const size_t          smsz =
       C //
-      * ((((fW - 1) / 32) + ((fW - 1) % 32 != 0)) * 32 + bdim * tf)
-      * (fH - 1 + bdim) * //
-      sizeof(float);
+        // If using shared memory padding to avoid bank conflicts
+      /* * ((((fW - 1) / 32) + ((fW - 1) % 32 != 0)) * 32 + bdim * tf) // */
+      * (fH - 1 + wdim * tf) //
+      * (fH - 1 + hdim)      //
+      * sizeof(float);
 
-  const dim3 Gshp(W / (bdim * tf), H / (bdim), fK * N);
-  const dim3 Bshp(bdim, bdim, bdim);
+  const unsigned WgrdDim = (W / (wdim * tf)) + ((W % (wdim * tf)) != 0);
+  const unsigned HgrdDim = (H / hdim) + ((H % hdim) != 0);
+  const dim3     Gshp(WgrdDim, HgrdDim, fK * N);
+  const dim3     Bshp(wdim, hdim, 1);
 
-  conv2d_full_kernel<tf><<<Gshp, Bshp, smsz>>>(In, pad, fK, fH, fW, C, Out);
+  conv2d_full_kernel<tf>
+      <<<Gshp, Bshp, smsz>>>(In, N, C, H, W, pad, fK, fH, fW, Out);
   cudaDeviceSynchronize();
 }
 
