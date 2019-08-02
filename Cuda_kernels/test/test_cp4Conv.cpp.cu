@@ -3,9 +3,7 @@
 #include "../Tensor.cuh"
 #include "../Utils.cuh"
 #include "../cp4Conv2d.cuh"
-/* #include "../conv.cuh" */
 #include "../cudnnConv2d.cuh"
-#include "../manual.cuh"
 
 TEST_CASE("Convolution test") {
 

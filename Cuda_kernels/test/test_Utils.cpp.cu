@@ -3,7 +3,6 @@
 #include "../Tensor.cuh"
 #include "../Utils.cuh"
 #include "../cudnnConv2d.cuh"
-#include "../manual.cuh"
 
 TEST_CASE("Utils test") {
 
