@@ -9,21 +9,21 @@
 
 TEST_CASE("Convolution test") {
 
-  int    x     = 32;
-  int    c     = 16;
-  int    k     = 16;
-  int    n     = 1;
-  Tensor U     = random_fill({ n, c, x, x }, 0, 1);
-  Tensor K     = random_fill({ k, c, 3, 3 }, 0, 1);
-  auto   Cudnn = nn_conv2d(U, K);
+  int    x      = 32;
+  int    c      = 16;
+  int    k      = 16;
+  int    n      = 1;
+  Tensor Input  = random_fill({ n, c, x, x }, 0, 1);
+  Tensor Filter = random_fill({ k, c, 3, 3 }, 0, 1);
+  auto   Cudnn  = nn_conv2d(Input, Filter);
 
-  REQUIRE(U.size() == (n * c * x * x));
-  REQUIRE(U.shape[0] == n);
-  REQUIRE(U.shape[1] == c);
-  REQUIRE(U.shape[2] == x);
-  REQUIRE(U.shape[3] == x);
+  REQUIRE(Input.size() == (n * c * x * x));
+  REQUIRE(Input.shape[0] == n);
+  REQUIRE(Input.shape[1] == c);
+  REQUIRE(Input.shape[2] == x);
+  REQUIRE(Input.shape[3] == x);
 
-  auto Full_gpu = conv2d_full_gpu(U, K, 1);
+  auto Full_gpu = conv2d_full_gpu(Input, Filter, 1);
 
   REQUIRE(Cudnn.size() == Full_gpu.size());
   REQUIRE(Full_gpu.shape[0] == n);
