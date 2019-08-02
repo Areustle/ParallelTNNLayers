@@ -19,12 +19,6 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
 
   // Declare useful constants. This should be cleaned up if
   // Register pressure grows too high.
-  /* const unsigned oW        = gridDim.x * blockDim.x * TileFactor; */
-  /* const unsigned oH        = gridDim.y * blockDim.y; */
-  /* const unsigned iW        = gridDim.x * blockDim.x * TileFactor; */
-  /* const unsigned iH        = gridDim.y * blockDim.y; */
-  const unsigned oW = W, iW = W;
-  const unsigned oH = H, iH = H;
   const unsigned w         = threadIdx.x;
   const unsigned h         = threadIdx.y;
   const unsigned Bw        = blockDim.x;
@@ -39,14 +33,15 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
   // Grid Stride loop to handle overlarge batch (n) and filter (k) sizes
   for (int n = blockIdx.z / fK; n < N; n += blockDim.z * gridDim.z) {
     for (int k = blockIdx.z % fK; k < fK; k += blockDim.z * gridDim.z) {
+
       // Shift the Global pointers to our Region Of interest
       const float* iPtr =
-          Input + n * C * iH * iW; // batch number offset for this thread
+          Input + n * C * H * W; // batch number offset for this thread
 
-      float* oPtr = Out + n * fK * oH * oW // batch offset
-                    + k * oH * oW          // conv filter offset
-                    + hBlockOff * oW       // h offset
-                    + wBlockOff;           // w offset
+      float* oPtr = Out + n * fK * H * W // batch offset
+                    + k * H * W          // conv filter offset
+                    + hBlockOff * W      // h offset
+                    + wBlockOff;         // w offset
 
       // clang-format off
       // Cooperatively load all input segment into our shared memory and pad it.
@@ -57,28 +52,30 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
       for (unsigned t = 0; t < TileFactor; ++t)
         shared_mem[c*sH*sW + j*sW + i+(t*Bw)]
           = (j+hBlockOff >= pad
-              && j+hBlockOff < iH+pad
+              && j+hBlockOff < H+pad
               && i+wBlockOff >= pad
-              && i+wBlockOff+(t*Bw) < iW+pad)
-          ?(iPtr[c*iH*iW                      // Channel
-                  + (j+hBlockOff-pad)*iW       // Height
-                  + (i+wBlockOff-pad)+(t*Bw)]) // Width
-          :(0.0f);
+              && i+wBlockOff+(t*Bw) < W+pad)
+          ?(iPtr[c*H*W                          // Channel
+                  + (j+hBlockOff-pad)*W         // Height
+                  + (i+wBlockOff-pad)+(t*Bw)])  // Width
+          :(0.0f); // Pad with Zeros if outside the bounds
 
       __syncthreads();
 
       // Handle block / input size mismatch. This occurs here and not earlier
       // So that these threads can still participate in the cooperative shared
       // Memory load.
-      if (hBlockOff + h >= oH) continue;
-      if (wBlockOff + w >= oW) continue;
+      if (hBlockOff + h >= H) continue;
+      if (wBlockOff + w >= W) continue;
 
-      // Build sum by tiling factor
+      // Build sum by tiling factor. If tiling factor is >1 then each thread
+      // will calculate multiple output pixels in local registers.
       float sum[TileFactor];
       #pragma unroll
       for (unsigned t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
 
-      // Perform Convolution from shared memory
+      // Perform Convolution from shared memory.
+      // Accumulate sum of products in 'sum' variable for each t.
       // currently expect this to have bank conflicts. Requires padding.
       for (unsigned c = 0; c < C; ++c)
       for (unsigned r = 0; r < fH; ++r)
@@ -91,7 +88,7 @@ __global__ void conv2d_full_kernel(const float* __restrict__ Input,
       // populate output array.
       #pragma unroll
       for (unsigned t = 0; t < TileFactor; ++t)
-        oPtr[h*oW + w+(t*Bw)] = sum[t];
+        oPtr[h*W + w+(t*Bw)] = sum[t];
       // clang-format on
     }
   }

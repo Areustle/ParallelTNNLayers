@@ -15,7 +15,7 @@ int main() {
   unsigned fW  = 3;
   unsigned pad = 1;
 
-  cudaMalloc(&U, (N * C * (H + 2*pad) * (W + 2*pad)) * sizeof(float));
+  cudaMalloc(&U, (N * C * (H + 2 * pad) * (W + 2 * pad)) * sizeof(float));
   cudaMalloc(&K, (fK * C * fH * fW) * sizeof(float));
   cudaMalloc(&V, (N * fK * H * W) * sizeof(float));
 
