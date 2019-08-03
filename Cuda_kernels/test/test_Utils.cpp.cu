@@ -2,7 +2,7 @@
 #include "../../external/doctest/doctest.h"
 #include "../Tensor.cuh"
 #include "../Utils.cuh"
-#include "../cudnnConv2d.cuh"
+#include "../NVConv2d.cuh"
 
 TEST_CASE("Utils test") {
 
@@ -22,7 +22,7 @@ TEST_CASE("Utils test") {
     CHECK(K.shape[2] == 3);
     CHECK(K.shape[3] == 3);
 
-    auto V = nn_conv2d(U, K);
+    auto V = NV::Conv2dForward(U, K);
     CHECK(V.size() == (1 * 16 * 32 * 32));
     CHECK(V.order() == 4);
     CHECK(V.shape[0] == 1);

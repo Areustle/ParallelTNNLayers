@@ -1,6 +1,6 @@
 #define DOCTEST_CONFIG_IMPLEMENTATION_IN_DLL
 #include "../../external/doctest/doctest.h"
-#include "../cudnnConv2d.cuh"
+#include "../NVConv2d.cuh"
 #include <random>
 
 TEST_CASE("cudnn_full_conv2d test") {
@@ -17,7 +17,7 @@ TEST_CASE("cudnn_full_conv2d test") {
   for (int i = 0; i < U.size(); ++i) REQUIRE(U.m_data[i] != 0);
   for (int i = 0; i < K.size(); ++i) REQUIRE(K.m_data[i] == 0);
 
-  auto V = nn_conv2d(U, K);
+  auto V = NV::Conv2dForward(U, K);
 
   for (int i = 0; i < V.size(); ++i) REQUIRE(V.m_data[i] == 0);
 }

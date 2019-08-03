@@ -1,4 +1,4 @@
-#include "cudnnConv2d.cuh"
+#include "NVConv2d.cuh"
 #include <cudnn.h>
 #include <iostream>
 
@@ -12,7 +12,7 @@
     }                                                        \
   }
 
-Tensor nn_conv2d(Tensor const U, Tensor const K) {
+Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
 
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
@@ -22,10 +22,10 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   checkCUDNN(cudnnSetTensor4dDescriptor(input_descriptor,
                                         CUDNN_TENSOR_NCHW,
                                         CUDNN_DATA_FLOAT,
-                                        U.shape[0],
-                                        U.shape[1],
-                                        U.shape[2],
-                                        U.shape[3]));
+                                        In.shape[0],
+                                        In.shape[1],
+                                        In.shape[2],
+                                        In.shape[3]));
 
   cudnnFilterDescriptor_t kernel_descriptor;
   checkCUDNN(cudnnCreateFilterDescriptor(&kernel_descriptor));
@@ -93,8 +93,8 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   cudaMallocManaged(&d_workspace, workspace_bytes);
 
   float* d_input{ nullptr };
-  cudaMalloc(&d_input, U.size());
-  cudaMemcpy(d_input, U.m_data, U.size(), cudaMemcpyHostToDevice);
+  cudaMalloc(&d_input, In.size());
+  cudaMemcpy(d_input, In.m_data, In.size(), cudaMemcpyHostToDevice);
 
   size_t out_bytes = batch_size * channels * height * width * sizeof(float);
   float* d_output{ nullptr };
@@ -107,7 +107,7 @@ Tensor nn_conv2d(Tensor const U, Tensor const K) {
   cudnnConvolutionForward(cudnn,
                           &alpha,
                           input_descriptor,
-                          U.m_data,
+                          In.m_data,
                           kernel_descriptor,
                           K.m_data,
                           convolution_descriptor,

@@ -1,4 +1,4 @@
-#include "conv.cuh"
+#include "FullConv2d.cuh"
 
 __constant__ float const_filter[4096];
 

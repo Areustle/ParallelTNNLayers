@@ -1,4 +1,4 @@
-#include "../conv.cuh"
+#include "../FullConv2d.cuh"
 
 int main() {
 

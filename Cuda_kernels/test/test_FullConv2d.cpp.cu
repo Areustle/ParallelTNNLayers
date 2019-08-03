@@ -2,18 +2,20 @@
 #include "../../external/doctest/doctest.h"
 #include "../Tensor.cuh"
 #include "../Utils.cuh"
-#include "../conv.cuh"
-#include "../cudnnConv2d.cuh"
+#include "../FullConv2d.cuh"
+#include "../NVConv2d.cuh"
 
 TEST_CASE("Convolution test") {
 
-  int    x      = 32;
-  int    c      = 16;
-  int    k      = 16;
-  int    n      = 1;
+  int x = 32;
+  int c = 16;
+  int k = 16;
+  int n = 1;
+
   Tensor Input  = random_fill({ n, c, x, x }, 0, 1);
   Tensor Filter = random_fill({ k, c, 3, 3 }, 0, 1);
-  auto   Cudnn  = nn_conv2d(Input, Filter);
+
+  auto Cudnn = NV::Conv2dForward(Input, Filter);
 
   REQUIRE(Input.size() == (n * c * x * x));
   REQUIRE(Input.shape[0] == n);
