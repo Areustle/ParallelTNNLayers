@@ -12,30 +12,28 @@
     }                                                        \
   }
 
-Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
-
+float NV::conv2d_forward_gpu(float* In,
+                             int    N,
+                             int    C,
+                             int    H,
+                             int    W,
+                             float* Filter,
+                             int    fK,
+                             int    fH,
+                             int    fW,
+                             float* Out) {
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
 
   cudnnTensorDescriptor_t input_descriptor;
   checkCUDNN(cudnnCreateTensorDescriptor(&input_descriptor));
-  checkCUDNN(cudnnSetTensor4dDescriptor(input_descriptor,
-                                        CUDNN_TENSOR_NCHW,
-                                        CUDNN_DATA_FLOAT,
-                                        In.shape[0],
-                                        In.shape[1],
-                                        In.shape[2],
-                                        In.shape[3]));
+  checkCUDNN(cudnnSetTensor4dDescriptor(
+      input_descriptor, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, H, W));
 
   cudnnFilterDescriptor_t kernel_descriptor;
   checkCUDNN(cudnnCreateFilterDescriptor(&kernel_descriptor));
-  checkCUDNN(cudnnSetFilter4dDescriptor(kernel_descriptor,
-                                        CUDNN_DATA_FLOAT,
-                                        CUDNN_TENSOR_NCHW,
-                                        K.shape[0],
-                                        K.shape[1],
-                                        K.shape[2],
-                                        K.shape[3]));
+  checkCUDNN(cudnnSetFilter4dDescriptor(
+      kernel_descriptor, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, fK, C, fH, fW));
 
   cudnnConvolutionDescriptor_t convolution_descriptor;
   checkCUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
@@ -93,30 +91,28 @@ Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
   cudaMallocManaged(&d_workspace, workspace_bytes);
 
   float* d_input{ nullptr };
-  cudaMalloc(&d_input, In.size());
-  cudaMemcpy(d_input, In.m_data, In.size(), cudaMemcpyHostToDevice);
+  cudaMalloc(&d_input, N * C * H * W);
+  cudaMemcpy(d_input, In, N * C * H * W, cudaMemcpyHostToDevice);
 
   size_t out_bytes = batch_size * channels * height * width * sizeof(float);
   float* d_output{ nullptr };
   cudaMalloc(&d_output, out_bytes);
   cudaMemset(d_output, 0, out_bytes);
 
-  Tensor V({ batch_size, channels, height, width });
-
   const float alpha = 1, beta = 0;
   cudnnConvolutionForward(cudnn,
                           &alpha,
                           input_descriptor,
-                          In.m_data,
+                          In,
                           kernel_descriptor,
-                          K.m_data,
+                          Filter,
                           convolution_descriptor,
                           convolution_algorithm,
                           d_workspace,
                           workspace_bytes,
                           &beta,
                           output_descriptor,
-                          V.m_data);
+                          Out);
 
   cudaFree(d_workspace);
   cudnnDestroyTensorDescriptor(input_descriptor);
@@ -124,6 +120,21 @@ Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
   cudnnDestroyFilterDescriptor(kernel_descriptor);
   cudnnDestroyConvolutionDescriptor(convolution_descriptor);
   cudnnDestroy(cudnn);
+}
+
+Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
+
+  Tensor V({ In.shape[0], K.shape[1], In.shape[2], In.shape[3] });
+  NV::conv2d_forward_gpu(In.m_data,
+                         In.shape[0],
+                         In.shape[1],
+                         In.shape[2],
+                         In.shape[3],
+                         K.m_data,
+                         K.shape[0],
+                         K.shape[2],
+                         K.shape[3],
+                         V.m_data);
 
   return V;
 }

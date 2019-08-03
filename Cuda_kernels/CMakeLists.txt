@@ -3,14 +3,14 @@
 # ##############################################################################
 add_library(Tensor SHARED Tensor.cu)
 add_library(Utils SHARED Utils.cu)
-add_library(NVConv2D SHARED NVConv2d.cu)
+add_library(NVConv2d SHARED NVConv2d.cu)
 add_library(FullConv2d SHARED FullConv2d.cu)
 add_library(cp4conv SHARED cp4Conv2d.cu)
 
 # ##############################################################################
 # Dependencies
 # ##############################################################################
-target_link_libraries(NVConv2D PUBLIC cudnn PRIVATE Tensor)
+target_link_libraries(NVConv2d PUBLIC cudnn PRIVATE Tensor)
 target_link_libraries(Utils PUBLIC Tensor)
 target_link_libraries(FullConv2d PUBLIC Tensor)
 target_link_libraries(cp4conv PUBLIC Tensor)
@@ -31,7 +31,7 @@ add_executable(test_main
 target_link_libraries(test_main
                       PRIVATE doctest
                               Utils
-                              NVConv2D
+                              NVConv2d
                               cp4conv
                               FullConv2d
                               Tensor)
@@ -44,5 +44,8 @@ add_test(test_main test_main)
 add_executable(benchFullConv2d bench/benchFullConv2d.cpp.cu)
 add_executable(bench_cp4conv bench/bench_cp4Conv2d.cpp.cu)
 add_executable(bench_shrd bench/bench_shrd.cpp.cu)
+add_executable(bench_NVConv2d bench/bench_NVConv2d.cpp.cu)
+
 target_link_libraries(benchFullConv2d FullConv2d)
 target_link_libraries(bench_cp4conv cp4conv)
+target_link_libraries(bench_NVConv2d NVConv2d)
