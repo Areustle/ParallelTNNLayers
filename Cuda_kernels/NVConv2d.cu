@@ -1,6 +1,9 @@
 #include "NVConv2d.cuh"
 #include <cudnn.h>
 #include <iostream>
+#include <stdlib.h>
+
+using namespace std;
 
 #define checkCUDNN(expression)                               \
   {                                                          \
@@ -12,16 +15,16 @@
     }                                                        \
   }
 
-float NV::conv2d_forward_gpu(float* In,
-                             int    N,
-                             int    C,
-                             int    H,
-                             int    W,
-                             float* Filter,
-                             int    fK,
-                             int    fH,
-                             int    fW,
-                             float* Out) {
+void NV::conv2d_forward_gpu(float* In,
+                            int    N,
+                            int    C,
+                            int    H,
+                            int    W,
+                            float* Filter,
+                            int    fK,
+                            int    fH,
+                            int    fW,
+                            float* Out) {
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
 
@@ -137,4 +140,43 @@ Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
                          V.m_data);
 
   return V;
+}
+
+
+int main(int argc, char** argv) {
+
+  unsigned N  = 1;
+  unsigned C  = 16;
+  unsigned H  = 32;
+  unsigned W  = 32;
+  unsigned fK = 16;
+  unsigned fH = 3;
+  unsigned fW = 3;
+
+  if (argc != 8)
+    cerr << "Using default shape" << endl;
+  else {
+    N  = atoi(argv[1]);
+    C  = atoi(argv[2]);
+    H  = atoi(argv[3]);
+    W  = atoi(argv[4]);
+    fK = atoi(argv[5]);
+    fH = atoi(argv[6]);
+    fW = atoi(argv[7]);
+  }
+
+  float* In;
+  float* Out;
+  float* Filter;
+
+
+  cudaMalloc(&In, N * C * H * W * sizeof(float));
+  cudaMalloc(&Filter, fK * C * fH * fW * sizeof(float));
+  cudaMalloc(&Out, N * fK * H * W * sizeof(float));
+
+  NV::conv2d_forward_gpu(In, N, C, H, W, Filter, fK, fH, fW, Out);
+
+  cudaFree(In);
+  cudaFree(Filter);
+  cudaFree(Out);
 }

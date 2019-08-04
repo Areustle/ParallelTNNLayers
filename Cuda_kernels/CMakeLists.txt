@@ -41,11 +41,10 @@ add_test(test_main test_main)
 # ##############################################################################
 # Benchmarks
 # ##############################################################################
-add_executable(benchFullConv2d bench/benchFullConv2d.cpp.cu)
-add_executable(bench_cp4conv bench/bench_cp4Conv2d.cpp.cu)
-add_executable(bench_shrd bench/bench_shrd.cpp.cu)
-add_executable(bench_NVConv2d bench/bench_NVConv2d.cpp.cu)
+add_executable(CP4Conv2dForward cp4Conv2d.cu)
+add_executable(FullConv2dForward FullConv2d.cu)
+add_executable(NVConv2dForward NVConv2d.cu)
 
-target_link_libraries(benchFullConv2d FullConv2d)
-target_link_libraries(bench_cp4conv cp4conv)
-target_link_libraries(bench_NVConv2d NVConv2d)
+target_link_libraries(CP4Conv2dForward PRIVATE Tensor)
+target_link_libraries(FullConv2dForward PRIVATE Tensor)
+target_link_libraries(NVConv2dForward PRIVATE cudnn Tensor)

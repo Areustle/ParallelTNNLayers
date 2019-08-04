@@ -1,4 +1,8 @@
 #include "FullConv2d.cuh"
+#include <iostream>
+#include <stdlib.h>
+
+using namespace std;
 
 __constant__ float const_filter[4096];
 
@@ -199,4 +203,44 @@ Tensor conv2d_full_cpu(Tensor const Input, Tensor const Filter) {
   // clang-format on
 
   return Out;
+}
+
+
+int main(int argc, char** argv) {
+
+  unsigned N   = 1;
+  unsigned C   = 16;
+  unsigned H   = 32;
+  unsigned W   = 32;
+  unsigned fK  = 16;
+  unsigned fH  = 3;
+  unsigned fW  = 3;
+  unsigned pad = 1;
+
+  if (argc != 9)
+    cerr << "Using default shape" << endl;
+  else {
+    N   = atoi(argv[1]);
+    C   = atoi(argv[2]);
+    H   = atoi(argv[3]);
+    W   = atoi(argv[4]);
+    fK  = atoi(argv[5]);
+    fH  = atoi(argv[6]);
+    fW  = atoi(argv[7]);
+    pad = atoi(argv[8]);
+  }
+
+  float* In;
+  float* Out;
+  float* Filter;
+
+  cudaMalloc(&In, (N * C * (H + 2 * pad) * (W + 2 * pad)) * sizeof(float));
+  cudaMalloc(&Filter, (fK * C * fH * fW) * sizeof(float));
+  cudaMalloc(&Out, (N * fK * H * W) * sizeof(float));
+
+  cuda_conv2d_full_gpu(In, N, C, H, W, pad, Filter, fK, C, fH, fW, Out);
+
+  cudaFree(In);
+  cudaFree(Out);
+  cudaFree(Filter);
 }

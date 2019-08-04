@@ -1,4 +1,9 @@
 #include "cp4Conv2d.cuh"
+#include <iostream>
+#include <stdlib.h>
+
+using namespace std;
+
 
 __constant__ float const_filter[4096];
 
@@ -262,4 +267,71 @@ Tensor conv2d_cp4_cpu(Tensor const Input,
   }
   // clang-format on
   return Out;
+}
+
+
+int main(int argc, char** argv) {
+
+  unsigned N     = 1;
+  unsigned C     = 16;
+  unsigned H     = 32;
+  unsigned W     = 32;
+  unsigned fK    = 16;
+  unsigned fH    = 3;
+  unsigned fW    = 3;
+  unsigned fRank = 1;
+  unsigned pad   = 1;
+
+  if (argc != 10)
+    cerr << "Using default shape" << endl;
+  else {
+    N     = atoi(argv[1]);
+    C     = atoi(argv[2]);
+    H     = atoi(argv[3]);
+    W     = atoi(argv[4]);
+    fK    = atoi(argv[5]);
+    fH    = atoi(argv[6]);
+    fW    = atoi(argv[7]);
+    fRank = atoi(argv[8]);
+    pad   = atoi(argv[9]);
+  }
+
+  float* In;
+  float* Out;
+  float* FilterK;
+  float* FilterC;
+  float* FilterW;
+  float* FilterH;
+
+  cudaMalloc(&In, N * C * H * W * sizeof(float));
+  cudaMalloc(&FilterK, fK * fRank * sizeof(float));
+  cudaMalloc(&FilterC, C * fRank * sizeof(float));
+  cudaMalloc(&FilterH, fH * fRank * sizeof(float));
+  cudaMalloc(&FilterW, fW * fRank * sizeof(float));
+  cudaMalloc(&Out, N * fK * H * W * sizeof(float));
+
+  cuda_conv2d_cp4_gpu(In,
+                      N,
+                      C,
+                      H,
+                      W,
+                      pad,
+                      FilterK,
+                      FilterC,
+                      FilterH,
+                      FilterW,
+                      fRank,
+                      fK,
+                      C,
+                      fH,
+                      fW,
+                      Out);
+
+
+  cudaFree(In);
+  cudaFree(FilterK);
+  cudaFree(FilterC);
+  cudaFree(FilterH);
+  cudaFree(FilterW);
+  cudaFree(Out);
 }

@@ -7,7 +7,7 @@
 namespace NV {
 
   Tensor Conv2dForward(const Tensor, const Tensor);
-  float  conv2d_forward_gpu(float* In,
+  void   conv2d_forward_gpu(float* In,
                             int    N,
                             int    C,
                             int    H,
