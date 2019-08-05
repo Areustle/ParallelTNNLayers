@@ -1,5 +1,7 @@
 #! /bin/bash
 
+nsight="/opt/cuda/NsightCompute-2019.3/nv-nsight-cu-cli"
+
 declare -a input_filter_sizes=(
     #N C H W pad fK fH fW fRank
 
@@ -23,7 +25,7 @@ declare -a input_filter_sizes=(
 
 for prob in "${input_filter_sizes[@]}"
 do
-  RESULT=$(/opt/cuda/NsightCompute-2019.3/nv-nsight-cu-cli \
+  RESULT=$(${nsight} \
             --metrics gpu__time_duration.avg \
             --csv \
             --units base \
