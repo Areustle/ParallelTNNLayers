@@ -276,25 +276,26 @@ int main(int argc, char** argv) {
   unsigned C     = 16;
   unsigned H     = 32;
   unsigned W     = 32;
+  unsigned pad   = 1;
   unsigned fK    = 16;
   unsigned fH    = 3;
   unsigned fW    = 3;
   unsigned fRank = 1;
-  unsigned pad   = 1;
 
   if (argc != 10)
-    cerr << "Using default shape" << endl;
+    cerr << "Using Default shape" << endl;
   else {
     N     = atoi(argv[1]);
     C     = atoi(argv[2]);
     H     = atoi(argv[3]);
     W     = atoi(argv[4]);
-    fK    = atoi(argv[5]);
-    fH    = atoi(argv[6]);
-    fW    = atoi(argv[7]);
-    fRank = atoi(argv[8]);
-    pad   = atoi(argv[9]);
+    pad   = atoi(argv[5]);
+    fK    = atoi(argv[6]);
+    fH    = atoi(argv[7]);
+    fW    = atoi(argv[8]);
+    fRank = atoi(argv[9]);
   }
+
 
   float* In;
   float* Out;
