@@ -33,8 +33,7 @@ do
                 | rev \
                 | cut -d '"' -f 1-2 \
                 | cut -c 2- \
-                | sed 's/,//g' \
                 | rev
   )
-  echo "($prob),${RESULT}"
+  echo "($prob);${RESULT}"
 done
