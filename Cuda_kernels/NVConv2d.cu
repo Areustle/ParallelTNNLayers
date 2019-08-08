@@ -145,10 +145,10 @@ Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
 
 int main(int argc, char** argv) {
 
-  unsigned N  = 1;
+  unsigned N  = 4;
   unsigned C  = 16;
-  unsigned H  = 32;
-  unsigned W  = 32;
+  unsigned H  = 256;
+  unsigned W  = 256;
   unsigned fK = 16;
   unsigned fH = 3;
   unsigned fW = 3;
