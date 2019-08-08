@@ -6,7 +6,6 @@ using namespace std;
 
 __constant__ float const_filter[4096];
 
-template<unsigned TileFactor = 1>
 __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
                                   const unsigned N,
@@ -37,7 +36,7 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   const unsigned w         = threadIdx.x % Bw;
   const unsigned h         = threadIdx.x / Bw;
   const unsigned c         = threadIdx.y;
-  const unsigned wBlockOff = (blockIdx.x % WgrdDim) * Bw * TileFactor;
+  const unsigned wBlockOff = (blockIdx.x % WgrdDim) * Bw;
   const unsigned hBlockOff = (blockIdx.x / WgrdDim) * Bh;
 
   // Grid Stride loop to handle overlarge batch (n) and filter (k) sizes
@@ -62,16 +61,14 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
       // Cooperatively load all input segment into our shared memory and pad it.
       for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
       for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
-      #pragma unroll
-      for (unsigned t = 0; t < TileFactor; ++t)
-        sPtr[j*sW + i+(t*Bw)]
+        sPtr[j*sW + i]
           = (j+hBlockOff >= pad
               && j+hBlockOff < H+pad
               && i+wBlockOff >= pad
-              && i+wBlockOff+(t*Bw) < W+pad)
+              && i+wBlockOff < W+pad)
           ?(iPtr[(j+hBlockOff-pad)*W         // Height
-                + (i+wBlockOff-pad)+(t*Bw)])  // Width
-        :(0.0f); // Pad with Zeros if outside the bounds
+                + (i+wBlockOff-pad)])  // Width
+          :(0.0f); // Pad with Zeros if outside the bounds
 
       __syncthreads();
 
@@ -83,38 +80,30 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
       // Build sum by tiling factor. If tiling factor is >1 then each thread
       // will calculate multiple output pixels in local registers.
-      float sum[TileFactor];
-      #pragma unroll
-      for (unsigned t = 0; t < TileFactor; ++t) sum[t] = 0.0f;
+      float sum = 0.0f;
 
       // Perform Convolution from shared memory.
-      // Accumulate sum of products in 'sum' variable for each t.
+      // Accumulate sum of products in 'sum' variable.
       // currently expect this to have bank conflicts. Requires padding.
       for (unsigned fh = 0; fh < fH; ++fh)
       for (unsigned fw = 0; fw < fW; ++fw)
       for (unsigned rr = 0; rr < Rank; ++rr)
-      #pragma unroll
-      for (unsigned t = 0; t < TileFactor; ++t){
-        sum[t] += sPtr[(h+fh)*sW + (w+fw+(t*Bw))]
+        sum += sPtr[(h+fh)*sW + (w+fw)]
               *  const_filter[offset_fK + k*Rank + rr]
               *  const_filter[offset_fC + c*Rank + rr]
               *  const_filter[offset_fH + fh*Rank + rr]
               *  const_filter[offset_fW + fw*Rank + rr];
+
+      shared_mem[c*sH*sW + h*sW +w] = sum;
+      __syncthreads();
+      for (unsigned cc = C/2; cc > 0; cc>>=1){
+        if(c < cc)
+          shared_mem[c*sH*sW + h*sW +w] += shared_mem[(c+cc)*sH*sW + h*sW +w];
+        __syncthreads();
       }
 
-      __syncthreads();
-      shared_mem[c*sH*sW + h*sW +w] = sum[0];
-      __syncthreads();
-      sum[0] = 0.0f;
-      if (threadIdx.y == 0){
-        for (unsigned cc = 0; cc < C; ++cc)
-          sum[0] += shared_mem[c*sH*sW + h*sW +w];
-      }
-
-      // populate output array.
-      #pragma unroll
-      for (unsigned t = 0; t < TileFactor; ++t)
-        oPtr[h*W + w+(t*Bw)] = sum[t];
+        // populate output array.
+      if (c == 0) oPtr[h*W + w] = shared_mem[c*sH*sW + h*sW + w];
 
       // clang-format on
     }
@@ -164,50 +153,48 @@ void cuda_conv2d_cp4_gpu(const float*   In,
                      sizeof(float) * (fW * fRank),
                      sizeof(float) * offset_fW);
 
-  const unsigned        Bh         = 1;
-  const unsigned        Bw         = 32;
-  const unsigned        Bc         = C;
-  static const unsigned TileFactor = 1;
-  const size_t          smsz       = Bc            //
-                      * (fW - 1 + Bw * TileFactor) //
-                      * (fH - 1 + Bh)              //
+  const unsigned Bh   = 1;
+  const unsigned Bw   = 32;
+  const unsigned Bc   = C;
+  const size_t   smsz = Bc            //
+                      * (fW - 1 + Bw) //
+                      * (fH - 1 + Bh) //
                       * sizeof(float);
 
-  const unsigned WgrdDim
-      = (W / (Bw * TileFactor)) + ((W % (Bw * TileFactor)) != 0);
+  const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0);
   const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
   const unsigned CgrdDim = (C / Bc) + ((C % Bc) != 0);
   const dim3     Gshp(WgrdDim * HgrdDim, CgrdDim, fK * N);
   const dim3     Bshp(Bw * Bh, Bc, 1);
   const unsigned iEnd = fW - 1 + Bw;
   const unsigned jEnd = fH - 1 + Bh;
-  const unsigned sW   = fW - 1 + Bw * TileFactor;
+  const unsigned sW   = fW - 1 + Bw;
   const unsigned sH   = fH - 1 + Bh;
 
-  conv2d_cp4_kernel<TileFactor><<<Gshp, Bshp, smsz>>>(Out,
-                                                      In,
-                                                      N,
-                                                      C,
-                                                      H,
-                                                      W,
-                                                      pad,
-                                                      offset_fK,
-                                                      offset_fC,
-                                                      offset_fH,
-                                                      offset_fW,
-                                                      fRank,
-                                                      fK,
-                                                      fC,
-                                                      fH,
-                                                      fW,
-                                                      WgrdDim,
-                                                      Bw,
-                                                      Bh,
-                                                      Bc,
-                                                      iEnd,
-                                                      jEnd,
-                                                      sW,
-                                                      sH);
+  conv2d_cp4_kernel<<<Gshp, Bshp, smsz>>>(Out,
+                                          In,
+                                          N,
+                                          C,
+                                          H,
+                                          W,
+                                          pad,
+                                          offset_fK,
+                                          offset_fC,
+                                          offset_fH,
+                                          offset_fW,
+                                          fRank,
+                                          fK,
+                                          fC,
+                                          fH,
+                                          fW,
+                                          WgrdDim,
+                                          Bw,
+                                          Bh,
+                                          Bc,
+                                          iEnd,
+                                          jEnd,
+                                          sW,
+                                          sH);
   cudaDeviceSynchronize();
 }
 
@@ -296,10 +283,10 @@ Tensor conv2d_cp4_cpu(Tensor const Input,
 
 int main(int argc, char** argv) {
 
-  unsigned N     = 4;
+  unsigned N     = 1;
   unsigned C     = 16;
-  unsigned H     = 256;
-  unsigned W     = 256;
+  unsigned H     = 32;
+  unsigned W     = 32;
   unsigned pad   = 1;
   unsigned fK    = 16;
   unsigned fH    = 3;

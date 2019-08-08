@@ -127,7 +127,7 @@ void NV::conv2d_forward_gpu(float* In,
 
 Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
 
-  Tensor V({ In.shape[0], K.shape[1], In.shape[2], In.shape[3] });
+  Tensor V({ In.shape[0], K.shape[0], In.shape[2], In.shape[3] });
   NV::conv2d_forward_gpu(In.m_data,
                          In.shape[0],
                          In.shape[1],
@@ -145,10 +145,10 @@ Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
 
 int main(int argc, char** argv) {
 
-  unsigned N  = 4;
+  unsigned N  = 1;
   unsigned C  = 16;
-  unsigned H  = 256;
-  unsigned W  = 256;
+  unsigned H  = 32;
+  unsigned W  = 32;
   unsigned fK = 16;
   unsigned fH = 3;
   unsigned fW = 3;
