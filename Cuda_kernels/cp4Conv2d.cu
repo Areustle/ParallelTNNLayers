@@ -50,7 +50,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
         float*       sPtr = shared_mem + threadIdx.y * sH * sW;
 
         // clang-format off
-
         // Cooperatively load all input segment into our shared memory and pad it.
         for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
         for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
@@ -63,6 +62,7 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
             :(0.0f); // Pad with Zeros if outside the bounds
 
         __syncthreads();
+        // clang-format on
 
         // Handle block / input size mismatch. This occurs here and not earlier
         // So that these threads can still participate in the cooperative shared
@@ -70,28 +70,28 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
         if (hBlockOff + h >= H) continue;
         if (wBlockOff + w >= W) continue;
 
-        // Build sum by tiling factor. If tiling factor is >1 then each thread
-        // will calculate multiple output pixels in local registers.
-        float sum = 0.0f;
+        float pixel_sum = 0.0f;
 
-        // clang-format on
         // Perform Convolution from shared memory.
-        // Accumulate sum of products in 'sum' variable.
-        // currently expect this to have bank conflicts. Requires padding.
+        // Accumulate sum of products in 'pixel_sum' variable.
         for (unsigned rr = 0; rr < Rank; ++rr) {
-          for (unsigned fh = 0; fh < fH; ++fh) {
-            for (unsigned fw = 0; fw < fW; ++fw) {
-              sum += sPtr[(h + fh) * sW + (w + fw)]
-                     * const_filter[offset_fK + k * Rank + rr]
-                     * const_filter[offset_fC + c * Rank + rr]
-                     * const_filter[offset_fH + fh * Rank + rr]
-                     * const_filter[offset_fW + fw * Rank + rr];
-            }
-          }
+
+          float rank_sum = 0.0f;
+
+          for (unsigned fh = 0; fh < fH; ++fh)
+            for (unsigned fw = 0; fw < fW; ++fw)
+              rank_sum += sPtr[(h + fh) * sW + (w + fw)]
+                          * const_filter[offset_fH + fh * Rank + rr]
+                          * const_filter[offset_fW + fw * Rank + rr];
+
+          rank_sum *= const_filter[offset_fK + k * Rank + rr]
+                      * const_filter[offset_fC + c * Rank + rr];
+
+          pixel_sum += rank_sum;
         }
 
         __syncthreads();
-        sPtr[h * sW + w] = sum;
+        sPtr[h * sW + w] = pixel_sum;
         __syncthreads();
 
         for (unsigned cc = blockDim.y / 2; cc > 0; cc >>= 1) {
@@ -155,9 +155,9 @@ void cuda_conv2d_cp4_gpu(const float*   In,
                      sizeof(float) * (fW * fRank),
                      sizeof(float) * offset_fW);
 
-  const unsigned Bh   = 2;
+  const unsigned Bh   = 8;
   const unsigned Bw   = 32;
-  const unsigned Bc   = 4;
+  const unsigned Bc   = 2;
   const size_t   smsz = Bc            //
                       * (fW - 1 + Bw) //
                       * (fH - 1 + Bh) //
