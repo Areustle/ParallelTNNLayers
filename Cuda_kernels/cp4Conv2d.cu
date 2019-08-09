@@ -35,7 +35,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
   const unsigned w         = threadIdx.x % Bw;
   const unsigned h         = threadIdx.x / Bw;
-  const unsigned c         = threadIdx.y;
   const unsigned wBlockOff = (blockIdx.x % WgrdDim) * Bw;
   const unsigned hBlockOff = (blockIdx.x / WgrdDim) * Bh;
 
@@ -43,69 +42,72 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   for (unsigned n = blockIdx.z / fK; n < N; n += blockDim.z * gridDim.z) {
     for (unsigned k = blockIdx.z % fK; k < fK; k += blockDim.z * gridDim.z) {
 
-      // Shift the Global pointers to our Region Of interest
-      const float* iPtr = Input
-                          + n * C * H * W // batch number offset for this thread
-                          + c * H * W;    // channel depth for this thread.
+      float partial_channel_sum = 0.0f;
 
-      float* oPtr = Out              //
-                    + n * fK * H * W // batch offset
-                    + k * H * W      // conv filter offset
-                    + hBlockOff * W  // h offset
-                    + wBlockOff;     // w offset
+      for (unsigned c = threadIdx.y; c < C; c += blockDim.y) {
+        // Shift the Global pointers to our Region Of interest
+        const float* iPtr = Input + n * C * H * W + c * H * W;
+        float*       sPtr = shared_mem + threadIdx.y * sH * sW;
 
-      float* sPtr = shared_mem + c * sH * sW;
+        // clang-format off
 
-      // clang-format off
+        // Cooperatively load all input segment into our shared memory and pad it.
+        for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
+        for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
+          sPtr[j*sW + i] = (j+hBlockOff >= pad
+                && j+hBlockOff < H+pad
+                && i+wBlockOff >= pad
+                && i+wBlockOff < W+pad)
+            ?(iPtr[(j+hBlockOff-pad)*W         // Height
+                  + (i+wBlockOff-pad)])  // Width
+            :(0.0f); // Pad with Zeros if outside the bounds
 
-      // Cooperatively load all input segment into our shared memory and pad it.
-      for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
-      for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
-        sPtr[j*sW + i]
-          = (j+hBlockOff >= pad
-              && j+hBlockOff < H+pad
-              && i+wBlockOff >= pad
-              && i+wBlockOff < W+pad)
-          ?(iPtr[(j+hBlockOff-pad)*W         // Height
-                + (i+wBlockOff-pad)])  // Width
-          :(0.0f); // Pad with Zeros if outside the bounds
-
-      __syncthreads();
-
-      // Handle block / input size mismatch. This occurs here and not earlier
-      // So that these threads can still participate in the cooperative shared
-      // Memory load.
-      if (hBlockOff + h >= H) continue;
-      if (wBlockOff + w >= W) continue;
-
-      // Build sum by tiling factor. If tiling factor is >1 then each thread
-      // will calculate multiple output pixels in local registers.
-      float sum = 0.0f;
-
-      // Perform Convolution from shared memory.
-      // Accumulate sum of products in 'sum' variable.
-      // currently expect this to have bank conflicts. Requires padding.
-      for (unsigned fh = 0; fh < fH; ++fh)
-      for (unsigned fw = 0; fw < fW; ++fw)
-      for (unsigned rr = 0; rr < Rank; ++rr)
-        sum += sPtr[(h+fh)*sW + (w+fw)]
-              *  const_filter[offset_fK + k*Rank + rr]
-              *  const_filter[offset_fC + c*Rank + rr]
-              *  const_filter[offset_fH + fh*Rank + rr]
-              *  const_filter[offset_fW + fw*Rank + rr];
-
-      shared_mem[c*sH*sW + h*sW +w] = sum;
-      __syncthreads();
-      for (unsigned cc = C/2; cc > 0; cc>>=1){
-        if(c < cc)
-          shared_mem[c*sH*sW + h*sW +w] += shared_mem[(c+cc)*sH*sW + h*sW +w];
         __syncthreads();
+
+        // Handle block / input size mismatch. This occurs here and not earlier
+        // So that these threads can still participate in the cooperative shared
+        // Memory load.
+        if (hBlockOff + h >= H) continue;
+        if (wBlockOff + w >= W) continue;
+
+        // Build sum by tiling factor. If tiling factor is >1 then each thread
+        // will calculate multiple output pixels in local registers.
+        float sum = 0.0f;
+
+        // clang-format on
+        // Perform Convolution from shared memory.
+        // Accumulate sum of products in 'sum' variable.
+        // currently expect this to have bank conflicts. Requires padding.
+        for (unsigned rr = 0; rr < Rank; ++rr) {
+          for (unsigned fh = 0; fh < fH; ++fh) {
+            for (unsigned fw = 0; fw < fW; ++fw) {
+              sum += sPtr[(h + fh) * sW + (w + fw)]
+                     * const_filter[offset_fK + k * Rank + rr]
+                     * const_filter[offset_fC + c * Rank + rr]
+                     * const_filter[offset_fH + fh * Rank + rr]
+                     * const_filter[offset_fW + fw * Rank + rr];
+            }
+          }
+        }
+
+        __syncthreads();
+        sPtr[h * sW + w] = sum;
+        __syncthreads();
+
+        for (unsigned cc = blockDim.y / 2; cc > 0; cc >>= 1) {
+          if (threadIdx.y < cc)
+            shared_mem[threadIdx.y * sH * sW + h * sW + w]
+                += shared_mem[(threadIdx.y + cc) * sH * sW + h * sW + w];
+          __syncthreads();
+        }
+
+        partial_channel_sum += shared_mem[h * sW + w];
       }
 
-        // populate output array.
-      if (c == 0) oPtr[h*W + w] = shared_mem[c*sH*sW + h*sW + w];
-
-      // clang-format on
+      // populate output array.
+      if (threadIdx.y == 0)
+        Out[n * fK * H * W + k * H * W + (h + hBlockOff) * W + w + wBlockOff]
+            = partial_channel_sum;
     }
   }
 }
@@ -153,9 +155,9 @@ void cuda_conv2d_cp4_gpu(const float*   In,
                      sizeof(float) * (fW * fRank),
                      sizeof(float) * offset_fW);
 
-  const unsigned Bh   = 1;
+  const unsigned Bh   = 2;
   const unsigned Bw   = 32;
-  const unsigned Bc   = C;
+  const unsigned Bc   = 4;
   const size_t   smsz = Bc            //
                       * (fW - 1 + Bw) //
                       * (fH - 1 + Bh) //
@@ -163,8 +165,7 @@ void cuda_conv2d_cp4_gpu(const float*   In,
 
   const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0);
   const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
-  const unsigned CgrdDim = (C / Bc) + ((C % Bc) != 0);
-  const dim3     Gshp(WgrdDim * HgrdDim, CgrdDim, fK * N);
+  const dim3     Gshp(WgrdDim * HgrdDim, 1, fK * N);
   const dim3     Bshp(Bw * Bh, Bc, 1);
   const unsigned iEnd = fW - 1 + Bw;
   const unsigned jEnd = fH - 1 + Bh;
