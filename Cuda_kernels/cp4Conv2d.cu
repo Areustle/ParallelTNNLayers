@@ -6,6 +6,11 @@ using namespace std;
 
 __constant__ float const_filter[4096];
 
+/*******************************************************************************
+ * 2 Dimensional Convolution Operation using an order-4 CP decomposition.
+ * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
+ * Decomposition, and a Tensor Rank Decomposition.
+ *******************************************************************************/
 __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
                                   const unsigned N,
@@ -76,17 +81,21 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
         // Accumulate sum of products in 'pixel_sum' variable.
         for (unsigned rr = 0; rr < Rank; ++rr) {
 
+          // Store intermediate results for each rank.
           float rank_sum = 0.0f;
 
+          // sum of products for filter height and width.
           for (unsigned fh = 0; fh < fH; ++fh)
             for (unsigned fw = 0; fw < fW; ++fw)
               rank_sum += sPtr[(h + fh) * sW + (w + fw)]
                           * const_filter[offset_fH + fh * Rank + rr]
                           * const_filter[offset_fW + fw * Rank + rr];
 
+          // Avoid redundant work in nested loop.
           rank_sum *= const_filter[offset_fK + k * Rank + rr]
                       * const_filter[offset_fC + c * Rank + rr];
 
+          // accumulate pixel value for this channel.
           pixel_sum += rank_sum;
         }
 
