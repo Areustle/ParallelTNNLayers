@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
   unsigned fH = 3;
   unsigned fW = 3;
 
-  if (argc != 8 || argc != 10)
+  if (argc != 8 && argc != 10)
     cerr << "Using default shape" << endl;
   else if (argc == 8){
     N  = atoi(argv[1]);
