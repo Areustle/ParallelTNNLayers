@@ -153,16 +153,29 @@ int main(int argc, char** argv) {
   unsigned fH = 3;
   unsigned fW = 3;
 
-  if (argc != 8)
+  if (argc != 8 || argc != 10)
     cerr << "Using default shape" << endl;
-  else {
+  else if (argc == 8){
     N  = atoi(argv[1]);
     C  = atoi(argv[2]);
     H  = atoi(argv[3]);
     W  = atoi(argv[4]);
+    // pad var meaningless here
     fK = atoi(argv[5]);
     fH = atoi(argv[6]);
     fW = atoi(argv[7]);
+    // fRank var meaningless here
+  }
+  else if (argc == 10){
+    N  = atoi(argv[1]);
+    C  = atoi(argv[2]);
+    H  = atoi(argv[3]);
+    W  = atoi(argv[4]);
+    // pad var meaningless here
+    fK = atoi(argv[6]);
+    fH = atoi(argv[7]);
+    fW = atoi(argv[8]);
+    // fRank var meaningless here
   }
 
   float* In;

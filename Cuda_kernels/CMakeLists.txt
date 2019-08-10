@@ -44,6 +44,7 @@ add_test(test_main test_main)
 add_executable(CP4Conv2dForward cp4Conv2d.cu)
 add_executable(FullConv2dForward FullConv2d.cu)
 add_executable(NVConv2dForward NVConv2d.cu)
+add_executable(Tensor_Benchmark bench/bench_generic.cu)
 
 target_link_libraries(CP4Conv2dForward PRIVATE Tensor)
 target_link_libraries(FullConv2dForward PRIVATE Tensor)
