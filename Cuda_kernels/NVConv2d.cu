@@ -156,9 +156,12 @@ int main(int argc, char** argv) {
   unsigned fH  = 3;
   unsigned fW  = 3;
 
-  if (argc != 9 && argc != 10)
+  /* int devcnt = -1; */
+
+  if (argc != 11) {
+    cudaSetDevice(0);
     cerr << "Using default shape" << endl;
-  else if (argc == 9) {
+  } else {
     N   = atoi(argv[1]);
     C   = atoi(argv[2]);
     H   = atoi(argv[3]);
@@ -168,17 +171,12 @@ int main(int argc, char** argv) {
     fH  = atoi(argv[7]);
     fW  = atoi(argv[8]);
     // fRank var meaningless here
-  } else if (argc == 10) {
-    N   = atoi(argv[1]);
-    C   = atoi(argv[2]);
-    H   = atoi(argv[3]);
-    W   = atoi(argv[4]);
-    pad = atoi(argv[5]);
-    fK  = atoi(argv[6]);
-    fH  = atoi(argv[7]);
-    fW  = atoi(argv[8]);
-    // fRank var meaningless here
+    cudaSetDevice(atoi(argv[10]));
+    /* cerr << atoi(argv[10]) << " " << argv[10] << endl; */
   }
+
+  /* cerr << cudaGetDevice(&devcnt) << endl; */
+  /* cerr << devcnt << endl; */
 
   float* In;
   float* Out;

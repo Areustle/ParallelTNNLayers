@@ -1,41 +1,22 @@
 #! /bin/bash
 
-nsight="/opt/cuda/NsightCompute-2019.3/nv-nsight-cu-cli"
+GPUName=$1
+deviceNum=$2
 
-declare -a input_filter_sizes=(
-    #N C H W pad fK fH fW fRank
-
-    #Scale rank
-    "1 16 32 32 1 16 3 3 1"
-    "1 16 32 32 1 16 3 3 2"
-    "1 16 32 32 1 16 3 3 4"
-    "1 16 32 32 1 16 3 3 8"
-    "1 16 32 32 1 16 3 3 16"
-    "1 16 32 32 1 16 3 3 32"
-    # scale RGB images
-    "1 3 32 32 1 4 3 3 1"
-    "1 3 64 64 1 4 3 3 1"
-    "1 3 128 128 1 4 3 3 1"
-    "1 3 256 256 1 4 3 3 1"
-    "1 3 512 512 1 4 3 3 1"
-    "1 3 1024 1024 1 4 3 3 1"
-    "1 3 2048 2048 1 4 3 3 1"
-    "1 3 4096 4096 1 4 3 3 1"
+declare -a Problem_descriptor=(
+ "batch_size"
+ "channel_depth"
+ "image_size"
+ "filter_count"
+ "filter_size"
 )
 
-for prob in "${input_filter_sizes[@]}"
+for prob in "${Problem_descriptor[@]}"
 do
-  RESULT=$(${nsight} \
-            --metrics gpu__time_duration.avg \
-            --csv \
-            --units base \
-            ./_build/Cuda_kernels/CP4Conv2dForward \
-            $prob \
-                | tail -1 \
-                | rev \
-                | cut -d '"' -f 1-2 \
-                | cut -c 2- \
-                | rev
-  )
-  echo "($prob);${RESULT}"
+  $(./_build/Cuda_kernels/Tensor_Benchmark \
+    ./_build/Cuda_kernels/CP4Conv2dForward \
+    Cuda_kernels/bench/tensors_${prob}.txt \
+    Cuda_kernels/results/CP4Conv2dForward_results_${GPUName}_${prob}.txt \
+    ${deviceNum})
+  echo "Done ($prob)"
 done

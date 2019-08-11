@@ -4,7 +4,7 @@
 
 using namespace std;
 
-
+// Simple cuda error checking macro
 #define ErrChk(ans) \
   { CudaAssert((ans), __FILE__, __LINE__); }
 inline void
@@ -320,9 +320,10 @@ int main(int argc, char** argv) {
   unsigned fW    = 3;
   unsigned fRank = 1;
 
-  if (argc != 10)
+  if (argc != 11) {
     cerr << "Using Default shape" << endl;
-  else {
+    cudaSetDevice(0);
+  } else {
     N     = atoi(argv[1]);
     C     = atoi(argv[2]);
     H     = atoi(argv[3]);
@@ -332,8 +333,8 @@ int main(int argc, char** argv) {
     fH    = atoi(argv[7]);
     fW    = atoi(argv[8]);
     fRank = atoi(argv[9]);
+    cudaSetDevice(atoi(argv[10]));
   }
-
 
   float* In;
   float* Out;

@@ -1,35 +1,22 @@
 #! /bin/bash
 
-declare -a input_filter_sizes=(
-    #N C H W pad fK fH fW
+GPUName=$1
+deviceNum=$2
 
-    #Scale rank (pointless)
-    "1 16 32 32 16 3 3"
-
-    # scale RGB images
-    "1 3 32 32 4 3 3"
-    "1 3 64 64 4 3 3"
-    "1 3 128 128 4 3 3"
-    "1 3 256 256 4 3 3"
-    "1 3 512 512 4 3 3"
-    "1 3 1024 1024 4 3 3"
-    "1 3 2048 2048 4 3 3"
-    "1 3 4096 4096 4 3 3"
+declare -a Problem_descriptor=(
+ "batch_size"
+ "channel_depth"
+ "image_size"
+ "filter_count"
+ "filter_size"
 )
 
-for prob in "${input_filter_sizes[@]}"
+for prob in "${Problem_descriptor[@]}"
 do
-  RESULT=$(/opt/cuda/NsightCompute-2019.3/nv-nsight-cu-cli \
-            --metrics gpu__time_duration.avg \
-            --csv \
-            --units base \
-            ./_build/Cuda_kernels/NVConv2dForward \
-            $prob \
-                | tail -1 \
-                | rev \
-                | cut -d '"' -f 1-2 \
-                | cut -c 2- \
-                | rev
-  )
-  echo "($prob);${RESULT}"
+  $(./_build/Cuda_kernels/Tensor_Benchmark \
+    ./_build/Cuda_kernels/NVConv2dForward \
+    Cuda_kernels/bench/tensors_${prob}.txt \
+    Cuda_kernels/results/NVConv2dForward_results_${GPUName}_${prob}.txt \
+    ${deviceNum})
+  echo "Done ($prob)"
 done
