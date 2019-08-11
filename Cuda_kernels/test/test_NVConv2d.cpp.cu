@@ -17,7 +17,7 @@ TEST_CASE("cudnn_full_conv2d test") {
   for (int i = 0; i < U.size(); ++i) REQUIRE(U.m_data[i] != 0);
   for (int i = 0; i < K.size(); ++i) REQUIRE(K.m_data[i] == 0);
 
-  auto V = NV::Conv2dForward(U, K);
+  auto V = NV::Conv2dForward(U, K, 1);
 
   for (int i = 0; i < V.size(); ++i) REQUIRE(V.m_data[i] == 0);
 }

@@ -22,7 +22,7 @@ TEST_CASE("Utils test") {
     CHECK(K.shape[2] == 3);
     CHECK(K.shape[3] == 3);
 
-    auto V = NV::Conv2dForward(U, K);
+    auto V = NV::Conv2dForward(U, K, 1);
     CHECK(V.size() == (1 * 16 * 32 * 32));
     CHECK(V.order() == 4);
     CHECK(V.shape[0] == 1);

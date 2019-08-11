@@ -15,16 +15,17 @@ using namespace std;
     }                                                        \
   }
 
-void NV::conv2d_forward_gpu(float* In,
-                            int    N,
-                            int    C,
-                            int    H,
-                            int    W,
-                            float* Filter,
-                            int    fK,
-                            int    fH,
-                            int    fW,
-                            float* Out) {
+void NV::conv2d_forward_gpu(float*   In,
+                            unsigned N,
+                            unsigned C,
+                            unsigned H,
+                            unsigned W,
+                            unsigned pad,
+                            float*   Filter,
+                            unsigned fK,
+                            unsigned fH,
+                            unsigned fW,
+                            float*   Out) {
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
 
@@ -41,8 +42,8 @@ void NV::conv2d_forward_gpu(float* In,
   cudnnConvolutionDescriptor_t convolution_descriptor;
   checkCUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
   checkCUDNN(cudnnSetConvolution2dDescriptor(convolution_descriptor,
-                                             /*pad_height=*/1,
-                                             /*pad_width=*/1,
+                                             /*pad_height=*/pad,
+                                             /*pad_width=*/pad,
                                              /*vertical_stride=*/1,
                                              /*horizontal_stride=*/1,
                                              /*dilation_height=*/1,
@@ -125,7 +126,7 @@ void NV::conv2d_forward_gpu(float* In,
   cudnnDestroy(cudnn);
 }
 
-Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
+Tensor NV::Conv2dForward(const Tensor In, const Tensor K, unsigned pad) {
 
   Tensor V({ In.shape[0], K.shape[0], In.shape[2], In.shape[3] });
   NV::conv2d_forward_gpu(In.m_data,
@@ -133,6 +134,7 @@ Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
                          In.shape[1],
                          In.shape[2],
                          In.shape[3],
+                         pad,
                          K.m_data,
                          K.shape[0],
                          K.shape[2],
@@ -145,36 +147,36 @@ Tensor NV::Conv2dForward(Tensor const In, Tensor const K) {
 
 int main(int argc, char** argv) {
 
-  unsigned N  = 1;
-  unsigned C  = 16;
-  unsigned H  = 32;
-  unsigned W  = 32;
-  unsigned fK = 16;
-  unsigned fH = 3;
-  unsigned fW = 3;
+  unsigned N   = 1;
+  unsigned C   = 16;
+  unsigned H   = 32;
+  unsigned W   = 32;
+  unsigned pad = 1;
+  unsigned fK  = 16;
+  unsigned fH  = 3;
+  unsigned fW  = 3;
 
-  if (argc != 8 && argc != 10)
+  if (argc != 9 && argc != 10)
     cerr << "Using default shape" << endl;
-  else if (argc == 8){
-    N  = atoi(argv[1]);
-    C  = atoi(argv[2]);
-    H  = atoi(argv[3]);
-    W  = atoi(argv[4]);
-    // pad var meaningless here
-    fK = atoi(argv[5]);
-    fH = atoi(argv[6]);
-    fW = atoi(argv[7]);
+  else if (argc == 9) {
+    N   = atoi(argv[1]);
+    C   = atoi(argv[2]);
+    H   = atoi(argv[3]);
+    W   = atoi(argv[4]);
+    pad = atoi(argv[5]);
+    fK  = atoi(argv[6]);
+    fH  = atoi(argv[7]);
+    fW  = atoi(argv[8]);
     // fRank var meaningless here
-  }
-  else if (argc == 10){
-    N  = atoi(argv[1]);
-    C  = atoi(argv[2]);
-    H  = atoi(argv[3]);
-    W  = atoi(argv[4]);
-    // pad var meaningless here
-    fK = atoi(argv[6]);
-    fH = atoi(argv[7]);
-    fW = atoi(argv[8]);
+  } else if (argc == 10) {
+    N   = atoi(argv[1]);
+    C   = atoi(argv[2]);
+    H   = atoi(argv[3]);
+    W   = atoi(argv[4]);
+    pad = atoi(argv[5]);
+    fK  = atoi(argv[6]);
+    fH  = atoi(argv[7]);
+    fW  = atoi(argv[8]);
     // fRank var meaningless here
   }
 
@@ -187,7 +189,7 @@ int main(int argc, char** argv) {
   cudaMalloc(&Filter, fK * C * fH * fW * sizeof(float));
   cudaMalloc(&Out, N * fK * H * W * sizeof(float));
 
-  NV::conv2d_forward_gpu(In, N, C, H, W, Filter, fK, fH, fW, Out);
+  NV::conv2d_forward_gpu(In, N, C, H, W, pad, Filter, fK, fH, fW, Out);
 
   cudaFree(In);
   cudaFree(Filter);

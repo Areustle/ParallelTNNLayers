@@ -4,6 +4,21 @@
 
 using namespace std;
 
+
+#define ErrChk(ans) \
+  { CudaAssert((ans), __FILE__, __LINE__); }
+inline void
+CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
+  if (code != cudaSuccess) {
+    fprintf(
+        stderr, "CudaAssert: %s %s %d\n", cudaGetErrorString(code), file, line);
+    if (abort) exit(code);
+  }
+}
+
+/*******************************************************************************
+   Hard coded limit to size of decomposed filter of 4096 floats = 32 KB
+ ******************************************************************************/
 __constant__ float const_filter[4096];
 
 /*******************************************************************************
@@ -54,20 +69,19 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
         const float* iPtr = Input + n * C * H * W + c * H * W;
         float*       sPtr = shared_mem + threadIdx.y * sH * sW;
 
-        // clang-format off
-        // Cooperatively load all input segment into our shared memory and pad it.
-        for (unsigned j = h; j < jEnd; j += Bh)  // For every participating h pixel
-        for (unsigned i = w; i < iEnd; i += Bw)  // For every participating w pixel
-          sPtr[j*sW + i] = (j+hBlockOff >= pad
-                && j+hBlockOff < H+pad
-                && i+wBlockOff >= pad
-                && i+wBlockOff < W+pad)
-            ?(iPtr[(j+hBlockOff-pad)*W         // Height
-                  + (i+wBlockOff-pad)])  // Width
-            :(0.0f); // Pad with Zeros if outside the bounds
+        // Cooperatively load all input segment into our shared memory and pad
+        // it.
+        for (unsigned j = h; j < jEnd; j += Bh)
+          for (unsigned i = w; i < iEnd; i += Bw)
+            sPtr[j * sW + i]
+                = (j + hBlockOff >= pad       //
+                   && j + hBlockOff < H + pad //
+                   && i + wBlockOff >= pad    //
+                   && i + wBlockOff < W + pad)
+                      ? iPtr[(j + hBlockOff - pad) * W + (i + wBlockOff - pad)]
+                      : (0.0f); // Pad with Zeros if outside the bounds
 
         __syncthreads();
-        // clang-format on
 
         // Handle block / input size mismatch. This occurs here and not earlier
         // So that these threads can still participate in the cooperative shared
@@ -99,12 +113,14 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
           pixel_sum += rank_sum;
         }
 
+        // write accumulated pixel sum back to shared memory.
         __syncthreads();
         sPtr[h * sW + w] = pixel_sum;
         __syncthreads();
 
+        // Sum over all channels in block via shared memory partial reduce.
         for (unsigned cc = blockDim.y / 2; cc > 0; cc >>= 1) {
-          if (threadIdx.y < cc && threadIdx.y + cc < C)
+          if (threadIdx.y < cc && c + cc < C)
             shared_mem[threadIdx.y * sH * sW + h * sW + w]
                 += shared_mem[(threadIdx.y + cc) * sH * sW + h * sW + w];
           __syncthreads();
@@ -122,22 +138,22 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 }
 
 
-void cuda_conv2d_cp4_gpu(const float*   In,
-                         const unsigned N,
-                         const unsigned C,
-                         const unsigned H,
-                         const unsigned W,
-                         const unsigned pad,
-                         const float*   FilterK,
-                         const float*   FilterC,
-                         const float*   FilterH,
-                         const float*   FilterW,
-                         const unsigned fRank,
-                         const unsigned fK,
-                         const unsigned fC,
-                         const unsigned fH,
-                         const unsigned fW,
-                         float*         Out) {
+void CP4Conv2dGPU(const float*   In,
+                  const unsigned N,
+                  const unsigned C,
+                  const unsigned H,
+                  const unsigned W,
+                  const unsigned pad,
+                  const float*   FilterK,
+                  const float*   FilterC,
+                  const float*   FilterH,
+                  const float*   FilterW,
+                  const unsigned fRank,
+                  const unsigned fK,
+                  const unsigned fC,
+                  const unsigned fH,
+                  const unsigned fW,
+                  float*         Out) {
 
   // This implementation uses the GPU's constant memory as a fast cache to
   // hold the relatively small and unchanging filter weights. These must all
@@ -147,22 +163,22 @@ void cuda_conv2d_cp4_gpu(const float*   In,
   const unsigned offset_fC = offset_fK + (fK * fRank);
   const unsigned offset_fH = offset_fC + (fC * fRank);
   const unsigned offset_fW = offset_fH + (fH * fRank);
-  cudaMemcpyToSymbol(const_filter,
-                     FilterK,
-                     sizeof(float) * (fK * fRank),
-                     sizeof(float) * offset_fK);
-  cudaMemcpyToSymbol(const_filter,
-                     FilterC,
-                     sizeof(float) * (fC * fRank),
-                     sizeof(float) * offset_fC);
-  cudaMemcpyToSymbol(const_filter,
-                     FilterH,
-                     sizeof(float) * (fH * fRank),
-                     sizeof(float) * offset_fH);
-  cudaMemcpyToSymbol(const_filter,
-                     FilterW,
-                     sizeof(float) * (fW * fRank),
-                     sizeof(float) * offset_fW);
+  ErrChk(cudaMemcpyToSymbol(const_filter,
+                            FilterK,
+                            sizeof(float) * (fK * fRank),
+                            sizeof(float) * offset_fK));
+  ErrChk(cudaMemcpyToSymbol(const_filter,
+                            FilterC,
+                            sizeof(float) * (fC * fRank),
+                            sizeof(float) * offset_fC));
+  ErrChk(cudaMemcpyToSymbol(const_filter,
+                            FilterH,
+                            sizeof(float) * (fH * fRank),
+                            sizeof(float) * offset_fH));
+  ErrChk(cudaMemcpyToSymbol(const_filter,
+                            FilterW,
+                            sizeof(float) * (fW * fRank),
+                            sizeof(float) * offset_fW));
 
   const unsigned Bh   = 8;
   const unsigned Bw   = 32;
@@ -205,7 +221,8 @@ void cuda_conv2d_cp4_gpu(const float*   In,
                                           jEnd,
                                           sW,
                                           sH);
-  cudaDeviceSynchronize();
+  ErrChk(cudaPeekAtLastError());
+  ErrChk(cudaDeviceSynchronize());
 }
 
 
@@ -214,35 +231,35 @@ Tensor conv2d_cp4_gpu(Tensor const Input,
                       Tensor const FilterC,
                       Tensor const FilterH,
                       Tensor const FilterW,
-                      int          pad) {
+                      unsigned     pad) {
 
-  const int N     = Input.shape[0];
-  const int C     = Input.shape[1];
-  const int H     = Input.shape[2];
-  const int W     = Input.shape[3];
-  const int fRank = FilterK.shape[1];
-  const int fK    = FilterK.shape[0];
-  const int fC    = FilterC.shape[0];
-  const int fH    = FilterH.shape[0];
-  const int fW    = FilterW.shape[0];
+  const unsigned N     = Input.shape[0];
+  const unsigned C     = Input.shape[1];
+  const unsigned H     = Input.shape[2];
+  const unsigned W     = Input.shape[3];
+  const unsigned fRank = FilterK.shape[1];
+  const unsigned fK    = FilterK.shape[0];
+  const unsigned fC    = FilterC.shape[0];
+  const unsigned fH    = FilterH.shape[0];
+  const unsigned fW    = FilterW.shape[0];
 
   Tensor Out{ N, fK, H, W };
-  cuda_conv2d_cp4_gpu(Input.m_data,
-                      N,
-                      C,
-                      H,
-                      W,
-                      pad,
-                      FilterK.m_data,
-                      FilterC.m_data,
-                      FilterH.m_data,
-                      FilterW.m_data,
-                      fRank,
-                      fK,
-                      fC,
-                      fH,
-                      fW,
-                      Out.m_data);
+  CP4Conv2dGPU(Input.m_data,
+               N,
+               C,
+               H,
+               W,
+               pad,
+               FilterK.m_data,
+               FilterC.m_data,
+               FilterH.m_data,
+               FilterW.m_data,
+               fRank,
+               fK,
+               fC,
+               fH,
+               fW,
+               Out.m_data);
 
   return Out;
 }
@@ -252,19 +269,19 @@ Tensor conv2d_cp4_cpu(Tensor const Input,
                       Tensor const FilterC,
                       Tensor const FilterR,
                       Tensor const FilterS,
-                      int          pad) {
+                      unsigned     pad) {
 
-  const int N    = Input.shape[0];
-  const int C    = Input.shape[1];
-  const int iH   = Input.shape[2];
-  const int oH   = iH - 2 * pad;
-  const int iW   = Input.shape[3];
-  const int oW   = iW - 2 * pad;
-  const int Rank = FilterK.shape[1];
-  const int fK   = FilterK.shape[0];
-  const int fC   = FilterC.shape[0];
-  const int fH   = FilterR.shape[0];
-  const int fW   = FilterS.shape[0];
+  const unsigned N    = Input.shape[0];
+  const unsigned C    = Input.shape[1];
+  const unsigned iH   = Input.shape[2];
+  const unsigned oH   = iH - 2 * pad;
+  const unsigned iW   = Input.shape[3];
+  const unsigned oW   = iW - 2 * pad;
+  const unsigned Rank = FilterK.shape[1];
+  const unsigned fK   = FilterK.shape[0];
+  const unsigned fC   = FilterC.shape[0];
+  const unsigned fH   = FilterR.shape[0];
+  const unsigned fW   = FilterS.shape[0];
 
   Tensor Out{ N, C, oH, oW };
 
@@ -332,22 +349,22 @@ int main(int argc, char** argv) {
   cudaMalloc(&FilterW, fW * fRank * sizeof(float));
   cudaMalloc(&Out, N * fK * H * W * sizeof(float));
 
-  cuda_conv2d_cp4_gpu(In,
-                      N,
-                      C,
-                      H,
-                      W,
-                      pad,
-                      FilterK,
-                      FilterC,
-                      FilterH,
-                      FilterW,
-                      fRank,
-                      fK,
-                      C,
-                      fH,
-                      fW,
-                      Out);
+  CP4Conv2dGPU(In,
+               N,
+               C,
+               H,
+               W,
+               pad,
+               FilterK,
+               FilterC,
+               FilterH,
+               FilterW,
+               fRank,
+               fK,
+               C,
+               fH,
+               fW,
+               Out);
 
 
   cudaFree(In);

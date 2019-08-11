@@ -10,10 +10,10 @@
 class Tensor
 {
 public:
-  float*           m_data;
-  std::vector<int> shape;
+  float*                m_data;
+  std::vector<unsigned> shape;
 
-  Tensor(std::initializer_list<int>);
+  Tensor(std::initializer_list<unsigned>);
   Tensor(Tensor const&);
   Tensor(Tensor&&) = default;
   Tensor& operator =(Tensor const&);

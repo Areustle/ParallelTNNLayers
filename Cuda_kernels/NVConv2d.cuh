@@ -6,17 +6,18 @@
 
 namespace NV {
 
-  Tensor Conv2dForward(const Tensor, const Tensor);
-  void   conv2d_forward_gpu(float* In,
-                            int    N,
-                            int    C,
-                            int    H,
-                            int    W,
-                            float* Filter,
-                            int    fK,
-                            int    fH,
-                            int    fW,
-                            float* Out);
+  Tensor Conv2dForward(const Tensor, const Tensor, unsigned);
+  void   conv2d_forward_gpu(float*   In,
+                            unsigned N,
+                            unsigned C,
+                            unsigned H,
+                            unsigned W,
+                            unsigned pad,
+                            float*   Filter,
+                            unsigned fK,
+                            unsigned fH,
+                            unsigned fW,
+                            float*   Out);
 
 } // namespace NV
 
