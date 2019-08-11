@@ -1,4 +1,4 @@
-# Input      |  Filter
+# Input      |  Filter (actually fK C fH fW, but C taken from Input)
 #N C H W pad | fK fH fW fRank
 
 # Scale Tensor Rank
