@@ -104,7 +104,7 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
         __syncthreads();
 
         for (unsigned cc = blockDim.y / 2; cc > 0; cc >>= 1) {
-          if (threadIdx.y < cc)
+          if (threadIdx.y < cc && threadIdx.y + cc < C)
             shared_mem[threadIdx.y * sH * sW + h * sW + w]
                 += shared_mem[(threadIdx.y + cc) * sH * sW + h * sW + w];
           __syncthreads();

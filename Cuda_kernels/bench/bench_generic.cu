@@ -36,7 +36,8 @@ int main(int argc, char** argv) {
     string   exe(argv[1]);
     ifstream tensors(argv[2]);
     ofstream results(argv[3]);
-    /* if (argc == 4) out_stream = ofstream(argv[3]); */
+
+    results << "N,C,H,W,pad,fK,fH,fW,fRank,ns" << endl;
 
     if (!tensors.is_open()) {
       cerr << "Couldn't open tensors file.\n";
