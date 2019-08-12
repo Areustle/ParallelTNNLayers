@@ -46,8 +46,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const unsigned Bw,
                                   const unsigned Bh,
                                   const unsigned Bc,
-                                  const unsigned iEnd,
-                                  const unsigned jEnd,
                                   const unsigned sW,
                                   const unsigned sH) {
 
@@ -65,14 +63,17 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
       float partial_channel_sum = 0.0f;
 
       for (unsigned c = threadIdx.y; c < C; c += blockDim.y) {
+
+        /* unsigned c = 0; */
+        /* unsigned r = 0; */
         // Shift the Global pointers to our Region Of interest
         const float* iPtr = Input + n * C * H * W + c * H * W;
         float*       sPtr = shared_mem + threadIdx.y * sH * sW;
 
         // Cooperatively load all input segment into our shared memory and pad
         // it.
-        for (unsigned j = h; j < jEnd; j += Bh)
-          for (unsigned i = w; i < iEnd; i += Bw)
+        for (unsigned j = h; j < sH; j += Bh)
+          for (unsigned i = w; i < sW; i += Bw)
             sPtr[j * sW + i]
                 = (j + hBlockOff >= pad       //
                    && j + hBlockOff < H + pad //
@@ -192,8 +193,6 @@ void CP4Conv2dGPU(const float*   In,
   const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
   const dim3     Gshp(WgrdDim * HgrdDim, 1, fK * N);
   const dim3     Bshp(Bw * Bh, Bc, 1);
-  const unsigned iEnd = fW - 1 + Bw;
-  const unsigned jEnd = fH - 1 + Bh;
   const unsigned sW   = fW - 1 + Bw;
   const unsigned sH   = fH - 1 + Bh;
 
@@ -217,8 +216,6 @@ void CP4Conv2dGPU(const float*   In,
                                           Bw,
                                           Bh,
                                           Bc,
-                                          iEnd,
-                                          jEnd,
                                           sW,
                                           sH);
   ErrChk(cudaPeekAtLastError());
@@ -318,7 +315,7 @@ int main(int argc, char** argv) {
   unsigned fK    = 16;
   unsigned fH    = 3;
   unsigned fW    = 3;
-  unsigned fRank = 1;
+  unsigned fRank = 16;
 
   if (argc != 11) {
     cerr << "Using Default shape" << endl;
