@@ -5,6 +5,7 @@ add_library(Tensor SHARED Tensor.cu)
 add_library(Utils SHARED Utils.cu)
 add_library(NVConv2d SHARED NVConv2d.cu)
 add_library(cp4conv SHARED cp4Conv2d.cu)
+target_compile_features(Tensor PUBLIC cxx_std_11)
 
 # ##############################################################################
 # Dependencies
@@ -40,6 +41,7 @@ add_test(test_main test_main)
 add_executable(CP4Conv2dForward cp4Conv2d.cu)
 add_executable(NVConv2dForward NVConv2d.cu)
 add_executable(Tensor_Benchmark bench/bench_generic.cu)
+target_compile_features(Tensor_Benchmark PUBLIC cxx_std_11)
 
 target_link_libraries(CP4Conv2dForward PRIVATE Tensor)
 target_link_libraries(NVConv2dForward PRIVATE cudnn Tensor)

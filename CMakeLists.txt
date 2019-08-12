@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 project(
   ParallelTNNLayers
   VERSION 0.2
-  LANGUAGES CUDA
+  LANGUAGES CUDA CXX
   DESCRIPTION "A collection of Decomposed Tensor Operations for use in TNNs.")
 
 # Always use '-fPIC'/'-fPIE' option.
