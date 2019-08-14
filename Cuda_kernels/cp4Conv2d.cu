@@ -62,8 +62,7 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     const float* iPtr = Input + n * C * H * W + c * H * W;
     float*       sPtr = shared_mem + threadIdx.y * sH * sW;
 
-    // Cooperatively load all input segment into our shared memory and pad
-    // it.
+    // Cooperatively load all input segment into our shared memory and pad it.
     for (unsigned j = h; j < sH; j += Bh)
       for (unsigned i = w; i < sW; i += Bw)
         sPtr[j * sW + i]
