@@ -13,18 +13,19 @@ using namespace std;
 
 TEST_CASE("Convolution test") {
 
+  unsigned n    = 16;
+  unsigned c    = 16;
   unsigned x    = 32;
-  unsigned c    = 2;
-  unsigned k    = 16;
-  unsigned n    = 1;
-  unsigned rank = 6;
   unsigned pad  = 1;
+  unsigned k    = 16;
+  unsigned rank = 16;
+  unsigned f    = 3;
 
   auto Input = random_fill({ n, c, x, x }, 0, 1);
   auto K0    = random_fill({ k, rank }, 0, 1);
   auto K1    = random_fill({ c, rank }, 0, 1);
-  auto K2    = random_fill({ 3, rank }, 0, 1);
-  auto K3    = random_fill({ 3, rank }, 0, 1);
+  auto K2    = random_fill({ f, rank }, 0, 1);
+  auto K3    = random_fill({ f, rank }, 0, 1);
   auto K     = cp4recom(K0, K1, K2, K3);
 
   auto Cudnn = NV::Conv2dForward(Input, K, pad);

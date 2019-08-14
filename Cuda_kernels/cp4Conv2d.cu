@@ -26,6 +26,7 @@ __constant__ float const_filter[4096];
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor Rank Decomposition.
  *******************************************************************************/
+template<unsigned fH, unsigned fW>
 __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
                                   const unsigned N,
@@ -33,21 +34,15 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const unsigned H,
                                   const unsigned W,
                                   const unsigned pad,
-                                  const unsigned offset_fK,
-                                  const unsigned offset_fC,
-                                  const unsigned offset_fH,
-                                  const unsigned offset_fW,
+                                  const unsigned offK,
+                                  const unsigned offC,
+                                  const unsigned offH,
+                                  const unsigned offW,
                                   const unsigned Rank,
                                   const unsigned fK,
-                                  const unsigned fC,
-                                  const unsigned fH,
-                                  const unsigned fW,
                                   const unsigned WgrdDim,
                                   const unsigned Bw,
                                   const unsigned Bh,
-                                  const unsigned Bc,
-                                  const unsigned iEnd,
-                                  const unsigned jEnd,
                                   const unsigned sW,
                                   const unsigned sH) {
 
@@ -57,84 +52,85 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   const unsigned h         = threadIdx.x / Bw;
   const unsigned wBlockOff = (blockIdx.x % WgrdDim) * Bw;
   const unsigned hBlockOff = (blockIdx.x / WgrdDim) * Bh;
+  const unsigned k = blockIdx.y;
+  const unsigned n = blockIdx.z;
 
-  // Grid Stride loop to handle overlarge batch (n) and filter (k) sizes
-  for (unsigned n = blockIdx.z / fK; n < N; n += blockDim.z * gridDim.z) {
-    for (unsigned k = blockIdx.z % fK; k < fK; k += blockDim.z * gridDim.z) {
+  float partial_channel_sum = 0.0f;
 
-      float partial_channel_sum = 0.0f;
+  for (unsigned c = threadIdx.y; c < C; c += blockDim.y) {
+    // Shift the Global pointers to our Region Of interest
+    const float* iPtr = Input + n * C * H * W + c * H * W;
+    float*       sPtr = shared_mem + threadIdx.y * sH * sW;
 
-      for (unsigned c = threadIdx.y; c < C; c += blockDim.y) {
-        // Shift the Global pointers to our Region Of interest
-        const float* iPtr = Input + n * C * H * W + c * H * W;
-        float*       sPtr = shared_mem + threadIdx.y * sH * sW;
+    // Cooperatively load all input segment into our shared memory and pad
+    // it.
+    for (unsigned j = h; j < sH; j += Bh)
+      for (unsigned i = w; i < sW; i += Bw)
+        sPtr[j * sW + i]
+            = (j + hBlockOff >= pad       //
+               && j + hBlockOff < H + pad //
+               && i + wBlockOff >= pad    //
+               && i + wBlockOff < W + pad)
+                  ? iPtr[(j + hBlockOff - pad) * W + (i + wBlockOff - pad)]
+                  : (0.0f); // Pad with Zeros if outside the bounds
 
-        // Cooperatively load all input segment into our shared memory and pad
-        // it.
-        for (unsigned j = h; j < jEnd; j += Bh)
-          for (unsigned i = w; i < iEnd; i += Bw)
-            sPtr[j * sW + i]
-                = (j + hBlockOff >= pad       //
-                   && j + hBlockOff < H + pad //
-                   && i + wBlockOff >= pad    //
-                   && i + wBlockOff < W + pad)
-                      ? iPtr[(j + hBlockOff - pad) * W + (i + wBlockOff - pad)]
-                      : (0.0f); // Pad with Zeros if outside the bounds
+    __syncthreads();
 
-        __syncthreads();
+    // Handle block / input size mismatch. This occurs here and not earlier
+    // So that these threads can still participate in the cooperative shared
+    // Memory load.
+    if (hBlockOff + h >= H) continue;
+    if (wBlockOff + w >= W) continue;
 
-        // Handle block / input size mismatch. This occurs here and not earlier
-        // So that these threads can still participate in the cooperative shared
-        // Memory load.
-        if (hBlockOff + h >= H) continue;
-        if (wBlockOff + w >= W) continue;
+    float pixel_sum = 0.0f;
 
-        float pixel_sum = 0.0f;
+    // Perform Convolution from shared memory.
+    // Accumulate sum of products in 'pixel_sum' variable.
+    for (unsigned rr = 0; rr < Rank; ++rr) {
 
-        // Perform Convolution from shared memory.
-        // Accumulate sum of products in 'pixel_sum' variable.
-        for (unsigned rr = 0; rr < Rank; ++rr) {
+      // Store intermediate results for each rank.
+      float rank_sum = 0.0f;
 
-          // Store intermediate results for each rank.
-          float rank_sum = 0.0f;
-
-          // sum of products for filter height and width.
-          for (unsigned fh = 0; fh < fH; ++fh)
-            for (unsigned fw = 0; fw < fW; ++fw)
-              rank_sum += sPtr[(h + fh) * sW + (w + fw)]
-                          * const_filter[offset_fH + fh * Rank + rr]
-                          * const_filter[offset_fW + fw * Rank + rr];
-
-          // Avoid redundant work in nested loop.
-          rank_sum *= const_filter[offset_fK + k * Rank + rr]
-                      * const_filter[offset_fC + c * Rank + rr];
-
-          // accumulate pixel value for this channel.
-          pixel_sum += rank_sum;
+      // sum of products for filter height and width.
+      #pragma unroll
+      for (unsigned fh = 0; fh < fH; ++fh){
+        #pragma unroll
+        for (unsigned fw = 0; fw < fW; ++fw){
+          rank_sum += sPtr[(h + fh) * sW + (w + fw)]
+                      * const_filter[offH + fh * Rank + rr]
+                      * const_filter[offW + fw * Rank + rr];
         }
-
-        // write accumulated pixel sum back to shared memory.
-        __syncthreads();
-        sPtr[h * sW + w] = pixel_sum;
-        __syncthreads();
-
-        // Sum over all channels in block via shared memory partial reduce.
-        for (unsigned cc = blockDim.y / 2; cc > 0; cc >>= 1) {
-          if (threadIdx.y < cc && c + cc < C)
-            shared_mem[threadIdx.y * sH * sW + h * sW + w]
-                += shared_mem[(threadIdx.y + cc) * sH * sW + h * sW + w];
-          __syncthreads();
-        }
-
-        partial_channel_sum += shared_mem[h * sW + w];
       }
 
-      // populate output array.
-      if (threadIdx.y == 0)
-        Out[n * fK * H * W + k * H * W + (h + hBlockOff) * W + w + wBlockOff]
-            = partial_channel_sum;
+
+      // Avoid redundant work in nested loop.
+      rank_sum *= const_filter[offK + k * Rank + rr]
+                  * const_filter[offC + c * Rank + rr];
+
+      // accumulate pixel value for this channel.
+      pixel_sum += rank_sum;
     }
+
+    // write accumulated pixel sum back to shared memory.
+    __syncthreads();
+    sPtr[h * sW + w] = pixel_sum;
+    __syncthreads();
+
+    // Sum over all channels in block via shared memory partial reduce.
+    for (unsigned cc = blockDim.y / 2; cc > 0; cc >>= 1) {
+      if (threadIdx.y < cc && c + cc < C)
+        shared_mem[threadIdx.y * sH * sW + h * sW + w]
+            += shared_mem[(threadIdx.y + cc) * sH * sW + h * sW + w];
+      __syncthreads();
+    }
+
+    partial_channel_sum += shared_mem[h * sW + w];
   }
+
+  // populate output array.
+  if (threadIdx.y == 0)
+    Out[n * fK * H * W + k * H * W + (h + hBlockOff) * W + w + wBlockOff]
+        = partial_channel_sum;
 }
 
 
@@ -159,28 +155,28 @@ void CP4Conv2dGPU(const float*   In,
   // hold the relatively small and unchanging filter weights. These must all
   // be accessed uniformly by the threads in a block for parallel execution.
   // Populate GPU constant memory with the 4 filters at an appropriate offset.
-  const unsigned offset_fK = 0;
-  const unsigned offset_fC = offset_fK + (fK * fRank);
-  const unsigned offset_fH = offset_fC + (fC * fRank);
-  const unsigned offset_fW = offset_fH + (fH * fRank);
+  const unsigned offK = 0;
+  const unsigned offC = offK + (fK * fRank);
+  const unsigned offH = offC + (fC * fRank);
+  const unsigned offW = offH + (fH * fRank);
   ErrChk(cudaMemcpyToSymbol(const_filter,
                             FilterK,
                             sizeof(float) * (fK * fRank),
-                            sizeof(float) * offset_fK));
+                            sizeof(float) * offK));
   ErrChk(cudaMemcpyToSymbol(const_filter,
                             FilterC,
                             sizeof(float) * (fC * fRank),
-                            sizeof(float) * offset_fC));
+                            sizeof(float) * offC));
   ErrChk(cudaMemcpyToSymbol(const_filter,
                             FilterH,
                             sizeof(float) * (fH * fRank),
-                            sizeof(float) * offset_fH));
+                            sizeof(float) * offH));
   ErrChk(cudaMemcpyToSymbol(const_filter,
                             FilterW,
                             sizeof(float) * (fW * fRank),
-                            sizeof(float) * offset_fW));
+                            sizeof(float) * offW));
 
-  const unsigned Bh   = 8;
+  const unsigned Bh   = 4;
   const unsigned Bw   = 32;
   const unsigned Bc   = 2;
   const size_t   smsz = Bc            //
@@ -190,37 +186,27 @@ void CP4Conv2dGPU(const float*   In,
 
   const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0);
   const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
-  const dim3     Gshp(WgrdDim * HgrdDim, 1, fK * N);
+  const dim3     Gshp(WgrdDim * HgrdDim, fK, N);
   const dim3     Bshp(Bw * Bh, Bc, 1);
-  const unsigned iEnd = fW - 1 + Bw;
-  const unsigned jEnd = fH - 1 + Bh;
   const unsigned sW   = fW - 1 + Bw;
   const unsigned sH   = fH - 1 + Bh;
 
-  conv2d_cp4_kernel<<<Gshp, Bshp, smsz>>>(Out,
-                                          In,
-                                          N,
-                                          C,
-                                          H,
-                                          W,
-                                          pad,
-                                          offset_fK,
-                                          offset_fC,
-                                          offset_fH,
-                                          offset_fW,
-                                          fRank,
-                                          fK,
-                                          fC,
-                                          fH,
-                                          fW,
-                                          WgrdDim,
-                                          Bw,
-                                          Bh,
-                                          Bc,
-                                          iEnd,
-                                          jEnd,
-                                          sW,
-                                          sH);
+  switch (fW) {
+    case 1:  conv2d_cp4_kernel< 1, 1><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 3:  conv2d_cp4_kernel< 3, 3><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 5:  conv2d_cp4_kernel< 5, 5><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 7:  conv2d_cp4_kernel< 7, 7><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 9:  conv2d_cp4_kernel< 9, 9><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 11: conv2d_cp4_kernel<11,11><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 13: conv2d_cp4_kernel<13,13><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 15: conv2d_cp4_kernel<15,15><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 17: conv2d_cp4_kernel<17,17><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 19: conv2d_cp4_kernel<19,19><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 21: conv2d_cp4_kernel<21,21><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    default: cerr << "Filter shape not supported!" << endl;
+  }
+
+
   ErrChk(cudaPeekAtLastError());
   ErrChk(cudaDeviceSynchronize());
 }
@@ -318,7 +304,7 @@ int main(int argc, char** argv) {
   unsigned fK    = 16;
   unsigned fH    = 3;
   unsigned fW    = 3;
-  unsigned fRank = 1;
+  unsigned fRank = 16;
 
   if (argc != 11) {
     cerr << "Using Default shape" << endl;
