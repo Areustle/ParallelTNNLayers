@@ -26,7 +26,7 @@ __constant__ float const_filter[4096];
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor Rank Decomposition.
  *******************************************************************************/
-template<unsigned fH, unsigned fW>
+template<unsigned FilterDim>
 __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
                                   const unsigned N,
@@ -52,10 +52,10 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   const unsigned h         = threadIdx.x / Bw;
   const unsigned wBlockOff = (blockIdx.x % WgrdDim) * Bw;
   const unsigned hBlockOff = (blockIdx.x / WgrdDim) * Bh;
-  const unsigned k = blockIdx.y;
-  const unsigned n = blockIdx.z;
+  const unsigned k         = blockIdx.y;
+  const unsigned n         = blockIdx.z;
 
-  float partial_channel_sum = 0.0f;
+  float final_pixel_acc = 0.0f;
 
   for (unsigned c = threadIdx.y; c < C; c += blockDim.y) {
     // Shift the Global pointers to our Region Of interest
@@ -91,11 +91,11 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
       // Store intermediate results for each rank.
       float rank_sum = 0.0f;
 
-      // sum of products for filter height and width.
-      #pragma unroll
-      for (unsigned fh = 0; fh < fH; ++fh){
-        #pragma unroll
-        for (unsigned fw = 0; fw < fW; ++fw){
+// sum of products for filter height and width.
+#pragma unroll
+      for (unsigned fh = 0; fh < FilterDim; ++fh) {
+#pragma unroll
+        for (unsigned fw = 0; fw < FilterDim; ++fw) {
           rank_sum += sPtr[(h + fh) * sW + (w + fw)]
                       * const_filter[offH + fh * Rank + rr]
                       * const_filter[offW + fw * Rank + rr];
@@ -124,13 +124,13 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
       __syncthreads();
     }
 
-    partial_channel_sum += shared_mem[h * sW + w];
+    final_pixel_acc += shared_mem[h * sW + w];
   }
 
   // populate output array.
   if (threadIdx.y == 0)
     Out[n * fK * H * W + k * H * W + (h + hBlockOff) * W + w + wBlockOff]
-        = partial_channel_sum;
+        = final_pixel_acc;
 }
 
 
@@ -150,6 +150,8 @@ void CP4Conv2dGPU(const float*   In,
                   const unsigned fH,
                   const unsigned fW,
                   float*         Out) {
+
+  if (fH != fW) cerr << "Invalid filter shape. Height must equal width" << endl;
 
   // This implementation uses the GPU's constant memory as a fast cache to
   // hold the relatively small and unchanging filter weights. These must all
@@ -188,23 +190,25 @@ void CP4Conv2dGPU(const float*   In,
   const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
   const dim3     Gshp(WgrdDim * HgrdDim, fK, N);
   const dim3     Bshp(Bw * Bh, Bc, 1);
-  const unsigned sW   = fW - 1 + Bw;
-  const unsigned sH   = fH - 1 + Bh;
+  const unsigned sW = fW - 1 + Bw;
+  const unsigned sH = fH - 1 + Bh;
 
+  // clang-format off
   switch (fW) {
-    case 1:  conv2d_cp4_kernel< 1, 1><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 3:  conv2d_cp4_kernel< 3, 3><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 5:  conv2d_cp4_kernel< 5, 5><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 7:  conv2d_cp4_kernel< 7, 7><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 9:  conv2d_cp4_kernel< 9, 9><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 11: conv2d_cp4_kernel<11,11><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 13: conv2d_cp4_kernel<13,13><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 15: conv2d_cp4_kernel<15,15><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 17: conv2d_cp4_kernel<17,17><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 19: conv2d_cp4_kernel<19,19><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 21: conv2d_cp4_kernel<21,21><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 1:  conv2d_cp4_kernel< 1><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 3:  conv2d_cp4_kernel< 3><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 5:  conv2d_cp4_kernel< 5><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 7:  conv2d_cp4_kernel< 7><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 9:  conv2d_cp4_kernel< 9><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 11: conv2d_cp4_kernel<11><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 13: conv2d_cp4_kernel<13><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 15: conv2d_cp4_kernel<15><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 17: conv2d_cp4_kernel<17><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 19: conv2d_cp4_kernel<19><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+    case 21: conv2d_cp4_kernel<21><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
     default: cerr << "Filter shape not supported!" << endl;
   }
+  // clang-format on
 
 
   ErrChk(cudaPeekAtLastError());
