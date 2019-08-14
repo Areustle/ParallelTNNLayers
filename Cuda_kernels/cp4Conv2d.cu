@@ -26,7 +26,7 @@ __constant__ float const_filter[4096];
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor Rank Decomposition.
  *******************************************************************************/
-template<unsigned FilterDim>
+template<unsigned Rank>
 __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
                                   const unsigned N,
@@ -38,8 +38,8 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const unsigned offC,
                                   const unsigned offH,
                                   const unsigned offW,
-                                  const unsigned Rank,
                                   const unsigned fK,
+                                  const unsigned FilterDim,
                                   const unsigned WgrdDim,
                                   const unsigned Bw,
                                   const unsigned Bh,
@@ -52,85 +52,58 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   const unsigned h         = threadIdx.x / Bw;
   const unsigned wBlockOff = (blockIdx.x % WgrdDim) * Bw;
   const unsigned hBlockOff = (blockIdx.x / WgrdDim) * Bh;
-  const unsigned k         = blockIdx.y;
   const unsigned n         = blockIdx.z;
 
-  float final_pixel_acc = 0.0f;
+  float final_pixel_acc[Rank];
+  #pragma unroll
+  for (unsigned r=0; r<Rank; ++r) final_pixel_acc[r] = 0.0f;
 
-  for (unsigned c = threadIdx.y; c < C; c += blockDim.y) {
-    // Shift the Global pointers to our Region Of interest
-    const float* iPtr = Input + n * C * H * W + c * H * W;
-    float*       sPtr = shared_mem + threadIdx.y * sH * sW;
+  // Shift the Global pointers to our Region Of interest
+  const float* iPtr = Input + n * C * H * W ;
 
-    // Cooperatively load all input segment into our shared memory and pad
-    // it.
+  // Cooperatively load all input segment into our shared memory and pad it.
+  for (unsigned c = 0; c < C; ++c)
     for (unsigned j = h; j < sH; j += Bh)
       for (unsigned i = w; i < sW; i += Bw)
-        sPtr[j * sW + i]
+        shared_mem[c*sH*sW + j * sW + i]
             = (j + hBlockOff >= pad       //
                && j + hBlockOff < H + pad //
                && i + wBlockOff >= pad    //
                && i + wBlockOff < W + pad)
-                  ? iPtr[(j + hBlockOff - pad) * W + (i + wBlockOff - pad)]
+                  ? iPtr[c * H * W + (j + hBlockOff - pad) * W + (i + wBlockOff - pad)]
                   : (0.0f); // Pad with Zeros if outside the bounds
 
-    __syncthreads();
+  __syncthreads();
 
-    // Handle block / input size mismatch. This occurs here and not earlier
-    // So that these threads can still participate in the cooperative shared
-    // Memory load.
-    if (hBlockOff + h >= H) continue;
-    if (wBlockOff + w >= W) continue;
+  // Handle block / input size mismatch. This occurs here and not earlier
+  // So that these threads can still participate in the cooperative shared
+  // Memory load.
+  if (hBlockOff + h >= H) return;
+  if (wBlockOff + w >= W) return;
 
-    float pixel_sum = 0.0f;
-
-    // Perform Convolution from shared memory.
-    // Accumulate sum of products in 'pixel_sum' variable.
-    for (unsigned rr = 0; rr < Rank; ++rr) {
-
-      // Store intermediate results for each rank.
-      float rank_sum = 0.0f;
-
-// sum of products for filter height and width.
-#pragma unroll
-      for (unsigned fh = 0; fh < FilterDim; ++fh) {
-#pragma unroll
-        for (unsigned fw = 0; fw < FilterDim; ++fw) {
-          rank_sum += sPtr[(h + fh) * sW + (w + fw)]
-                      * const_filter[offH + fh * Rank + rr]
-                      * const_filter[offW + fw * Rank + rr];
+  // sum of products for filter channel, height and width.
+  for (unsigned c = 0; c < C; ++c){
+    for (unsigned fh = 0; fh < FilterDim; ++fh){
+      for (unsigned fw = 0; fw < FilterDim; ++fw){
+        #pragma unroll
+        for (unsigned r=0; r<Rank; ++r){
+          final_pixel_acc[r] += shared_mem[c*sH*sW + (h+fh)*sW + (w+fw)]
+                    * const_filter[offC +  c*Rank + r]
+                    * const_filter[offH + fh*Rank + r]
+                    * const_filter[offW + fw*Rank + r];
         }
       }
-
-
-      // Avoid redundant work in nested loop.
-      rank_sum *= const_filter[offK + k * Rank + rr]
-                  * const_filter[offC + c * Rank + rr];
-
-      // accumulate pixel value for this channel.
-      pixel_sum += rank_sum;
     }
-
-    // write accumulated pixel sum back to shared memory.
-    __syncthreads();
-    sPtr[h * sW + w] = pixel_sum;
-    __syncthreads();
-
-    // Sum over all channels in block via shared memory partial reduce.
-    for (unsigned cc = blockDim.y / 2; cc > 0; cc >>= 1) {
-      if (threadIdx.y < cc && c + cc < C)
-        shared_mem[threadIdx.y * sH * sW + h * sW + w]
-            += shared_mem[(threadIdx.y + cc) * sH * sW + h * sW + w];
-      __syncthreads();
-    }
-
-    final_pixel_acc += shared_mem[h * sW + w];
   }
 
-  // populate output array.
-  if (threadIdx.y == 0)
-    Out[n * fK * H * W + k * H * W + (h + hBlockOff) * W + w + wBlockOff]
-        = final_pixel_acc;
+  for (unsigned k=0; k<fK; ++k){
+    float kth_filter_pixel = 0.0f;
+    #pragma unroll
+    for (unsigned r=0; r<Rank; ++r)
+      kth_filter_pixel += final_pixel_acc[r] * const_filter[offK + k*Rank + r];
+
+    Out[n*fK*H*W + k*H*W + (h+hBlockOff)*W + w+wBlockOff] = kth_filter_pixel;
+  }
 }
 
 
@@ -178,34 +151,39 @@ void CP4Conv2dGPU(const float*   In,
                             sizeof(float) * (fW * fRank),
                             sizeof(float) * offW));
 
-  const unsigned Bh   = 4;
+  const unsigned Bh   = 1;
   const unsigned Bw   = 32;
-  const unsigned Bc   = 2;
-  const size_t   smsz = Bc            //
+  /* const unsigned Bc   = 2; */
+  const size_t   smsz = C            //
                       * (fW - 1 + Bw) //
                       * (fH - 1 + Bh) //
                       * sizeof(float);
 
   const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0);
   const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
-  const dim3     Gshp(WgrdDim * HgrdDim, fK, N);
-  const dim3     Bshp(Bw * Bh, Bc, 1);
+  const dim3     Gshp(WgrdDim * HgrdDim, 1, N);
+  const dim3     Bshp(Bw * Bh, 1, 1);
   const unsigned sW = fW - 1 + Bw;
   const unsigned sH = fH - 1 + Bh;
 
   // clang-format off
-  switch (fW) {
-    case 1:  conv2d_cp4_kernel< 1><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 3:  conv2d_cp4_kernel< 3><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 5:  conv2d_cp4_kernel< 5><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 7:  conv2d_cp4_kernel< 7><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 9:  conv2d_cp4_kernel< 9><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 11: conv2d_cp4_kernel<11><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 13: conv2d_cp4_kernel<13><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 15: conv2d_cp4_kernel<15><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 17: conv2d_cp4_kernel<17><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 19: conv2d_cp4_kernel<19><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
-    case 21: conv2d_cp4_kernel<21><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fRank, fK, WgrdDim, Bw, Bh, sW, sH); break;
+  switch (fRank) {
+    case 1:  conv2d_cp4_kernel< 1><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 2:  conv2d_cp4_kernel< 2><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 3:  conv2d_cp4_kernel< 3><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 4:  conv2d_cp4_kernel< 4><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 5:  conv2d_cp4_kernel< 5><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 6:  conv2d_cp4_kernel< 6><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 7:  conv2d_cp4_kernel< 7><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 8:  conv2d_cp4_kernel< 8><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 9:  conv2d_cp4_kernel< 9><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 10: conv2d_cp4_kernel<10><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 11: conv2d_cp4_kernel<11><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 12: conv2d_cp4_kernel<12><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 13: conv2d_cp4_kernel<13><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 14: conv2d_cp4_kernel<14><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 15: conv2d_cp4_kernel<15><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
+    case 16: conv2d_cp4_kernel<16><<<Gshp, Bshp, smsz>>>(Out, In, N, C, H, W, pad, offK, offC, offH, offW, fK, fW, WgrdDim, Bw, Bh, sW, sH); break;
     default: cerr << "Filter shape not supported!" << endl;
   }
   // clang-format on
