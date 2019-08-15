@@ -51,16 +51,16 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   const unsigned hBlockOff = blockIdx.y * blockDim.y;
   const unsigned n         = blockIdx.z;
 
-  float local_pixel_acc[16];
+  float local_pixel_acc[Rank];
 
-  for (unsigned r=0; r<Rank; ++r) local_pixel_acc[r] = 0.0f;
+  for (unsigned r = 0; r < Rank; ++r) local_pixel_acc[r] = 0.0f;
 
   // Cooperatively load all input segment into our shared memory and pad it.
   for (unsigned c = threadIdx.z; c < C; c += blockDim.z) {
 
     // Shift the Global pointers to our Region Of interest
-    const float* iPtr = Input + n*C*H*W + c*H*W;
-    float*       sPtr = shared_mem + threadIdx.z*sH*sW;
+    const float* iPtr = Input + n * C * H * W + c * H * W;
+    float*       sPtr = shared_mem + threadIdx.z * sH * sW;
 
     for (unsigned j = h; j < sH; j += blockDim.y)
       for (unsigned i = w; i < sW; i += blockDim.x)
@@ -80,20 +80,20 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     if (hBlockOff + h >= H) continue;
     if (wBlockOff + w >= W) continue;
 
-    float tmpxl[16];
+    float tmpxl[Rank];
 
-    for (unsigned r=0; r<Rank; ++r) tmpxl[r] = 0.0f;
+    for (unsigned r = 0; r < Rank; ++r) tmpxl[r] = 0.0f;
 
     for (unsigned fh = 0; fh < FilterDim; ++fh)
-    for (unsigned fw = 0; fw < FilterDim; ++fw)
-    #pragma unroll
-    for (unsigned r=0; r<Rank; ++r)
-      tmpxl[r] += sPtr[(h+fh)*sW + (w+fw)]
-                * const_filter[offH + fh*Rank + r]
-                * const_filter[offW + fw*Rank + r];
+      for (unsigned fw = 0; fw < FilterDim; ++fw)
+#pragma unroll
+        for (unsigned r = 0; r < Rank; ++r)
+          tmpxl[r] += sPtr[(h + fh) * sW + (w + fw)]
+                      * const_filter[offH + fh * Rank + r]
+                      * const_filter[offW + fw * Rank + r];
 
-    for (unsigned r=0; r<Rank; ++r)
-      local_pixel_acc[r] += tmpxl[r] * const_filter[offC + c*Rank + r];
+    for (unsigned r = 0; r < Rank; ++r)
+      local_pixel_acc[r] += tmpxl[r] * const_filter[offC + c * Rank + r];
   }
 
 
@@ -102,45 +102,47 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
    * Write unaccumulated rank vector to shared memory for later parallel
    * reduction over channel depth.
    ****************************************************************************/
-  for (unsigned rBlockOff=0; rBlockOff<Rank; rBlockOff+=Br){
+  for (unsigned rBlockOff = 0; rBlockOff < Rank; rBlockOff += Br) {
 
     __syncthreads();
 
-    #pragma unroll
-    for (unsigned r=0; r<Br; ++r)
-      shared_mem[threadIdx.z*sH*sW*Br + h*sW*Br + w*Br + r]
-        = local_pixel_acc[rBlockOff + r];
+#pragma unroll
+    for (unsigned r = 0; r < Br; ++r)
+      shared_mem[threadIdx.z * sH * sW * Br + h * sW * Br + w * Br + r]
+          = local_pixel_acc[rBlockOff + r];
 
     __syncthreads();
 
-    for (unsigned cc = blockDim.z / 2; cc > 0; cc >>= 1){
-      if (threadIdx.z < cc && threadIdx.z + cc < C){
-        for (unsigned r=0; r<Br; ++r)
-          shared_mem[threadIdx.z*sH*sW*Br + h*sW*Br + w*Br + r]
-            += shared_mem[(threadIdx.z+cc)*sH*sW*Br + h*sW*Br + w*Br + r];
+    for (unsigned cc = blockDim.z / 2; cc > 0; cc >>= 1) {
+      if (threadIdx.z < cc && threadIdx.z + cc < C) {
+        for (unsigned r = 0; r < Br; ++r)
+          shared_mem[threadIdx.z * sH * sW * Br + h * sW * Br + w * Br + r]
+              += shared_mem[(threadIdx.z + cc) * sH * sW * Br + h * sW * Br
+                            + w * Br + r];
       }
       __syncthreads();
     }
 
-    #pragma unroll
-    for (unsigned r=0; r<Br; ++r)
-      local_pixel_acc[rBlockOff + r] = shared_mem[h*sW*Br + w*Br + r];
-
+#pragma unroll
+    for (unsigned r = 0; r < Br; ++r)
+      local_pixel_acc[rBlockOff + r] = shared_mem[h * sW * Br + w * Br + r];
   }
   __syncthreads();
+
+
   /****************************************************************************
-   * Done rank access to shared memory.
+   * Reduce over rank while scaling by kth filter value.
    ****************************************************************************/
-
-
-  for (unsigned k=0; k<fK; ++k){
+  for (unsigned k = 0; k < fK; ++k) {
 
     float kth_filter_pixel = 0.0f;
 
-    for (unsigned r=0; r<Rank; ++r)
-      kth_filter_pixel += local_pixel_acc[r] * const_filter[offK + k*Rank + r];
+    for (unsigned r = 0; r < Rank; ++r)
+      kth_filter_pixel
+          += local_pixel_acc[r] * const_filter[offK + k * Rank + r];
 
-    Out[n*fK*H*W + k*H*W + (h+hBlockOff)*W + w+wBlockOff] = kth_filter_pixel;
+    Out[n * fK * H * W + k * H * W + (h + hBlockOff) * W + w + wBlockOff]
+        = kth_filter_pixel;
   }
 }
 
@@ -190,7 +192,7 @@ void CP4Conv2dGPU(const float*   In,
                             sizeof(float) * offW));
 
   cudaDeviceProp prop;
-  ErrChk(cudaGetDeviceProperties (&prop, 0));
+  ErrChk(cudaGetDeviceProperties(&prop, 0));
 
   unsigned Bh   = 4;
   unsigned Bw   = 16;
@@ -202,8 +204,7 @@ void CP4Conv2dGPU(const float*   In,
 
   while (smsz > prop.sharedMemPerBlock) {
     cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
-      << endl;
-    Bw /= 2;
+         << endl;
     Bc /= 2;
     Br /= 2;
     sW   = fW - 1 + Bw;
