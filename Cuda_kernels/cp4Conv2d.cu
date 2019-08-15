@@ -51,13 +51,12 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   const unsigned hBlockOff = blockIdx.y * blockDim.y;
   const unsigned n         = blockIdx.z;
 
-  float local_pixel_acc[Rank];
+  float local_pixel_acc[16];
 
-  #pragma unroll
   for (unsigned r=0; r<Rank; ++r) local_pixel_acc[r] = 0.0f;
 
   // Cooperatively load all input segment into our shared memory and pad it.
-  for (unsigned c = threadIdx.z; c < C; c += blockDim.z){
+  for (unsigned c = threadIdx.z; c < C; c += blockDim.z) {
 
     // Shift the Global pointers to our Region Of interest
     const float* iPtr = Input + n*C*H*W + c*H*W;
@@ -81,14 +80,11 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     if (hBlockOff + h >= H) continue;
     if (wBlockOff + w >= W) continue;
 
-    float tmpxl[Rank];
+    float tmpxl[16];
 
-    #pragma unroll
     for (unsigned r=0; r<Rank; ++r) tmpxl[r] = 0.0f;
 
-    #pragma unroll
     for (unsigned fh = 0; fh < FilterDim; ++fh)
-    #pragma unroll
     for (unsigned fw = 0; fw < FilterDim; ++fw)
     #pragma unroll
     for (unsigned r=0; r<Rank; ++r)
@@ -96,7 +92,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                 * const_filter[offH + fh*Rank + r]
                 * const_filter[offW + fw*Rank + r];
 
-    #pragma unroll
     for (unsigned r=0; r<Rank; ++r)
       local_pixel_acc[r] += tmpxl[r] * const_filter[offC + c*Rank + r];
   }
@@ -120,7 +115,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
     for (unsigned cc = blockDim.z / 2; cc > 0; cc >>= 1){
       if (threadIdx.z < cc && threadIdx.z + cc < C){
-        #pragma unroll
         for (unsigned r=0; r<Br; ++r)
           shared_mem[threadIdx.z*sH*sW*Br + h*sW*Br + w*Br + r]
             += shared_mem[(threadIdx.z+cc)*sH*sW*Br + h*sW*Br + w*Br + r];
@@ -143,7 +137,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
     float kth_filter_pixel = 0.0f;
 
-    #pragma unroll
     for (unsigned r=0; r<Rank; ++r)
       kth_filter_pixel += local_pixel_acc[r] * const_filter[offK + k*Rank + r];
 
@@ -199,9 +192,9 @@ void CP4Conv2dGPU(const float*   In,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties (&prop, 0));
 
-  unsigned Bh   = 2;
-  unsigned Bw   = 32;
-  unsigned Bc   = 4;
+  unsigned Bh   = 4;
+  unsigned Bw   = 16;
+  unsigned Bc   = 2;
   unsigned Br   = 4;
   unsigned sW   = fW - 1 + Bw;
   unsigned sH   = fH - 1 + Bh;
@@ -410,13 +403,13 @@ int main(int argc, char** argv) {
 
   unsigned N     = 1;
   unsigned C     = 16;
-  unsigned H     = 32;
-  unsigned W     = 32;
+  unsigned H     = 512;
+  unsigned W     = 512;
   unsigned pad   = 1;
   unsigned fK    = 16;
   unsigned fH    = 3;
   unsigned fW    = 3;
-  unsigned fRank = 16;
+  unsigned fRank = 8;
 
   if (argc != 11) {
     cerr << "Using Default shape" << endl;

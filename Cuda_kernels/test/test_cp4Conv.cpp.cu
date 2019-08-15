@@ -44,7 +44,7 @@ TEST_CASE("Convolution test") {
 
 TEST_CASE("Extended Convolution Test") {
 
-  std::vector<std::string> tensor_list {
+  std::vector<std::string> tensor_list{
     "Cuda_kernels/bench/tensors.txt"
     /* "Cuda_kernels/bench/tensors_batch_size.txt", */
     /* "Cuda_kernels/bench/tensors_channel_depth.txt", */
@@ -52,6 +52,10 @@ TEST_CASE("Extended Convolution Test") {
     /* "Cuda_kernels/bench/tensors_filter_count.txt", */
     /* "Cuda_kernels/bench/tensors_filter_size.txt", */
   };
+
+  Tensor Input{ 0, 0, 0, 0 };
+  Tensor Cudnn{ 0, 0, 0, 0 };
+  Tensor Filter{ 0, 0, 0, 0 };
 
   for (auto t : tensor_list) {
     ifstream tensors(t);
@@ -66,14 +70,22 @@ TEST_CASE("Extended Convolution Test") {
       unsigned     N, H, W, C, pad, fK, fH, fW, fRank;
       line_sm >> N >> C >> H >> W >> pad >> fK >> fH >> fW >> fRank;
 
-      auto Input   = random_fill({ N, C, H, W }, 0, 1);
       auto FilterK = random_fill({ fK, fRank }, 0, 1);
       auto FilterC = random_fill({ C, fRank }, 0, 1);
       auto FilterH = random_fill({ fH, fRank }, 0, 1);
       auto FilterW = random_fill({ fW, fRank }, 0, 1);
-      auto Filter  = cp4recom(FilterK, FilterC, FilterH, FilterW);
 
-      auto Cudnn = NV::Conv2dForward(Input, Filter, pad);
+      /* if (Cudnn.shape[0] != N &&   // */
+      /*     Cudnn.shape[1] != C &&   // */
+      /*     Cudnn.shape[2] != H &&   // */
+      /*     Cudnn.shape[3] != W &&   // */
+      /*     Filter.shape[0] != fK && // */
+      /*     Filter.shape[2] != fH && // */
+      /*     Filter.shape[3] != fW) { */
+        Input   = random_fill({ N, C, H, W }, 0, 1);
+        Filter = cp4recom(FilterK, FilterC, FilterH, FilterW);
+        Cudnn  = NV::Conv2dForward(Input, Filter, pad);
+      /* } */
 
       auto CP4Conv2dGPU
           = conv2d_cp4_gpu(Input, FilterK, FilterC, FilterH, FilterW, pad);
@@ -88,10 +100,10 @@ TEST_CASE("Extended Convolution Test") {
             Cudnn.m_data[i]
                 == doctest::Approx(CP4Conv2dGPU.m_data[i]).epsilon(1e-5),
 
-            "Incorrect result with " << line << " Parsed as " << N << "," << C
-                                     << "," << H << "," << W << "," << pad << ","
-                                     << fK << "," << fH << "," << fW << ","
-                                     << fRank);
+            "Incorrect result with "
+                << line << " Parsed as " << N << "," << C << "," << H << ","
+                << W << "," << pad << "," << fK << "," << fH << "," << fW << ","
+                << fRank);
     }
   }
 }
