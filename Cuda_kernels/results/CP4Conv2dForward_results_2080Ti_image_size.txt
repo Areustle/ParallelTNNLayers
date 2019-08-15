@@ -1,1 +1,0 @@
-N,C,H,W,pad,fK,fH,fW,fRank,ns
