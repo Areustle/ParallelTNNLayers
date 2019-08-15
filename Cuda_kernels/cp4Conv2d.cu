@@ -100,27 +100,27 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
       final_pixel_acc[r] += tmpxl[r] * const_filter[offC + c*Rank + r];
   }
 
+  __syncthreads();
   // Write unaccumulated rank vector to shared memory for later parallel 
   // reduction over channel depth.
-  float* shared_rank = (shared_mem + sH*sW*blockDim.z);
   #pragma unroll
   for (unsigned r=0; r<Rank; ++r)
-    shared_rank[threadIdx.z*sH*sW*Rank + h*sW*Rank + w*Rank + r] = final_pixel_acc[r];
+    shared_mem[threadIdx.z*sH*sW*Rank + h*sW*Rank + w*Rank + r] = final_pixel_acc[r];
   __syncthreads();
 
   for (unsigned cc = blockDim.z / 2; cc > 0; cc >>= 1){
     if (threadIdx.z < cc && threadIdx.z + cc < C){
       #pragma unroll
       for (unsigned r=0; r<Rank; ++r)
-        shared_rank[threadIdx.z*sH*sW*Rank + h*sW*Rank + w*Rank + r]
-          += shared_rank[(threadIdx.z+cc)*sH*sW*Rank + h*sW*Rank + w*Rank + r];
+        shared_mem[threadIdx.z*sH*sW*Rank + h*sW*Rank + w*Rank + r]
+          += shared_mem[(threadIdx.z+cc)*sH*sW*Rank + h*sW*Rank + w*Rank + r];
     }
     __syncthreads();
   }
 
   #pragma unroll
   for (unsigned r=0; r<Rank; ++r)
-    final_pixel_acc[r] = shared_rank[h*sW*Rank + w*Rank + r];
+    final_pixel_acc[r] = shared_mem[h*sW*Rank + w*Rank + r];
 
 
   for (unsigned k=0; k<fK; ++k){
@@ -180,12 +180,19 @@ void CP4Conv2dGPU(const float*   In,
                             sizeof(float) * (fW * fRank),
                             sizeof(float) * offW));
 
+  cudaDeviceProp prop;
+  ErrChk(cudaGetDeviceProperties (&prop, 0));
+
   const unsigned Bh   = 2;
   const unsigned Bw   = 32;
   const unsigned Bc   = 4;
   const unsigned sW   = fW - 1 + Bw;
   const unsigned sH   = fH - 1 + Bh;
-  const size_t   smsz = (Bc + Bc*fRank) * sW * sH * sizeof(float);
+  const size_t   smsz = Bc * fRank * sW * sH * sizeof(float);
+
+  if (smsz > prop.sharedMemPerBlock)
+    cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
+      << endl;
 
   const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0);
   const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
