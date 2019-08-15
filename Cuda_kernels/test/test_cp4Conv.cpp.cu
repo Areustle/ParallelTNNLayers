@@ -45,11 +45,12 @@ TEST_CASE("Convolution test") {
 TEST_CASE("Extended Convolution Test") {
 
   std::vector<std::string> tensor_list {
+    "Cuda_kernels/bench/tensors.txt"
     /* "Cuda_kernels/bench/tensors_batch_size.txt", */
     /* "Cuda_kernels/bench/tensors_channel_depth.txt", */
     /* "Cuda_kernels/bench/tensors_image_size.txt", */
     /* "Cuda_kernels/bench/tensors_filter_count.txt", */
-    "Cuda_kernels/bench/tensors_filter_size.txt",
+    /* "Cuda_kernels/bench/tensors_filter_size.txt", */
   };
 
   for (auto t : tensor_list) {
@@ -86,6 +87,7 @@ TEST_CASE("Extended Convolution Test") {
         REQUIRE_MESSAGE(
             Cudnn.m_data[i]
                 == doctest::Approx(CP4Conv2dGPU.m_data[i]).epsilon(1e-5),
+
             "Incorrect result with " << line << " Parsed as " << N << "," << C
                                      << "," << H << "," << W << "," << pad << ","
                                      << fK << "," << fH << "," << fW << ","
