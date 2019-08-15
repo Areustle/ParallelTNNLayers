@@ -1,0 +1,55 @@
+# Input      |  Filter (actually fK C fH fW, but C taken from Input)
+# Here the first 4 entries are the NCHW shape of the Input tensor, followed by
+# the number of cells to zero-pad (along the H&W dimensions). Then the filter
+# tensor shape where channel depth is implied by C and the tensor rank.
+#
+# N: Input data batch size
+# C: Shared channel depth of input and filter tensors
+# H: Input tensor height
+# W: Input tensor width
+# pad: depth of cells to zero-pad along HW border of input
+#
+# fK: Output channel depth after convolution.
+# fH: filter height of convolution kernel
+# fW: filter width of convolution kernel
+# fRank: The rank of the tensor decomposition.
+#
+#N C H W pad | fK fH fW fRank
+
+# scale all dimensions
+
+# rank 1
+1   1    32    32 1   1 3 3 1
+2   2    64    64 1   2 3 3 1
+3   4   128   128 1   4 3 3 1
+4   8   256   256 1   8 3 3 1
+5  16   512   512 1  16 3 3 1
+5  32  1024  1024 1  32 3 3 1
+
+# rank 2
+1     1   32   32 1    1 3 3 2
+2     2   64   64 1    2 3 3 2
+4     4  128  128 1    4 3 3 2
+8     8  256  256 1    8 3 3 2
+16   16  512  512 1   16 3 3 2
+
+# rank 4
+1     1   32   32 1    1 3 3 4
+2     2   64   64 1    2 3 3 4
+4     4  128  128 1    4 3 3 4
+8     8  256  256 1    8 3 3 4
+16   16  512  512 1   16 3 3 4
+
+# rank 8
+1     1   32   32 1    1 3 3 8
+2     2   64   64 1    2 3 3 8
+4     4  128  128 1    4 3 3 8
+8     8  256  256 1    8 3 3 8
+16   16  512  512 1   16 3 3 8
+
+# rank 16
+1     1   32   32 1    1 3 3 16
+2     2   64   64 1    2 3 3 16
+4     4  128  128 1    4 3 3 16
+8     8  256  256 1    8 3 3 16
+16   16  512  512 1   16 3 3 16

@@ -147,12 +147,12 @@ Tensor NV::Conv2dForward(const Tensor In, const Tensor K, unsigned pad) {
 
 int main(int argc, char** argv) {
 
-  unsigned N   = 1;
-  unsigned C   = 16;
-  unsigned H   = 32;
-  unsigned W   = 32;
+  unsigned N   = 5;
+  unsigned C   = 32;
+  unsigned H   = 1024;
+  unsigned W   = 1024;
   unsigned pad = 1;
-  unsigned fK  = 16;
+  unsigned fK  = 32;
   unsigned fH  = 3;
   unsigned fW  = 3;
 
