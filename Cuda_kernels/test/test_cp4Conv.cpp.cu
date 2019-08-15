@@ -12,8 +12,6 @@
 using namespace std;
 
 TEST_CASE("Convolution test") {
-  /* 1 16 32 32 1   16 3 3 1 */
-  /* 1 3  512  512 1    1 3 3 1 */
 
   unsigned n    = 1;
   unsigned c    = 8;
@@ -21,7 +19,7 @@ TEST_CASE("Convolution test") {
   unsigned pad  = 1;
   unsigned k    = 1;
   unsigned f    = 3;
-  unsigned rank = 1;
+  unsigned rank = 8;
 
   auto Input = random_fill({ n, c, x, x }, 0, 1);
   auto K0    = random_fill({ k, rank }, 0, 1);
@@ -41,18 +39,19 @@ TEST_CASE("Convolution test") {
   REQUIRE(CP4Conv2d.shape[3] == x);
   for (int i = 0; i < Cudnn.size(); ++i)
     REQUIRE(Cudnn.m_data[i]
-            == doctest::Approx(CP4Conv2d.m_data[i]).epsilon(1e-3));
+            == doctest::Approx(CP4Conv2d.m_data[i]).epsilon(1e-5));
 }
 
 TEST_CASE("Extended Convolution Test") {
 
   std::vector<std::string> tensor_list{
-    /* "Cuda_kernels/bench/tensors.txt" */
-    /* "Cuda_kernels/bench/tensors_batch_size.txt", */
-    /* "Cuda_kernels/bench/tensors_channel_depth.txt", */
-    /* "Cuda_kernels/bench/tensors_image_size.txt", */
-    /* "Cuda_kernels/bench/tensors_filter_count.txt", */
-    /* "Cuda_kernels/bench/tensors_filter_size.txt", */
+    "Cuda_kernels/bench/tensors.txt",
+    "Cuda_kernels/bench/tensors_batch_size.txt",
+    "Cuda_kernels/bench/tensors_channel_depth.txt",
+    "Cuda_kernels/bench/tensors_image_size.txt",
+    "Cuda_kernels/bench/tensors_filter_count.txt",
+    "Cuda_kernels/bench/tensors_filter_size.txt",
+    /* "Cuda_kernels/bench/tensors_all_scales.txt", */
   };
 
   for (auto t : tensor_list) {
@@ -88,7 +87,7 @@ TEST_CASE("Extended Convolution Test") {
       for (int i = 0; i < Cudnn.size(); ++i)
         REQUIRE_MESSAGE(
             Cudnn.m_data[i]
-                == doctest::Approx(CP4Conv2dGPU.m_data[i]).epsilon(1e-3),
+                == doctest::Approx(CP4Conv2dGPU.m_data[i]).epsilon(1e-5),
             "Incorrect result with "
                 << line << " Parsed as " << N << "," << C << "," << H << ","
                 << W << "," << pad << "," << fK << "," << fH << "," << fW << ","

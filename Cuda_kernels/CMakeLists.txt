@@ -45,3 +45,7 @@ target_compile_features(Tensor_Benchmark PUBLIC cxx_std_11)
 
 target_link_libraries(CP4Conv2dForward PRIVATE Tensor)
 target_link_libraries(NVConv2dForward PRIVATE cudnn Tensor)
+
+target_compile_options(CP4Conv2dForward PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+  --generate-line-info
+  >)
