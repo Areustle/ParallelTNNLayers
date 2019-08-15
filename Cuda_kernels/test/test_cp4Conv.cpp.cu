@@ -13,11 +13,11 @@ using namespace std;
 
 TEST_CASE("Convolution test") {
 
-  unsigned n    = 1;
-  unsigned c    = 8;
-  unsigned x    = 4096;
+  unsigned n    = 5;
+  unsigned c    = 32;
+  unsigned x    = 1024;
   unsigned pad  = 1;
-  unsigned k    = 1;
+  unsigned k    = 32;
   unsigned f    = 3;
   unsigned rank = 8;
 

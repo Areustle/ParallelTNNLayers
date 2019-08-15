@@ -94,6 +94,9 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     __syncthreads();
   }
 
+
+
+
   if (hBlockOff + h >= H) return;
   if (wBlockOff + w >= W) return;
 
@@ -161,7 +164,7 @@ void CP4Conv2dGPU(const float*   In,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned Bh   = 4;
+  unsigned Bh   = 8;
   unsigned Bw   = 16;
   unsigned sW   = fW - 1 + Bw;
   unsigned sH   = fH - 1 + Bh;
@@ -363,15 +366,15 @@ Tensor conv2d_cp4_cpu(Tensor const Input,
 
 int main(int argc, char** argv) {
 
-  unsigned N     = 1;
-  unsigned C     = 16;
-  unsigned H     = 32;
-  unsigned W     = 32;
+  unsigned N     = 5;
+  unsigned C     = 32;
+  unsigned H     = 1024;
+  unsigned W     = 1024;
   unsigned pad   = 1;
-  unsigned fK    = 16;
+  unsigned fK    = 32;
   unsigned fH    = 3;
   unsigned fW    = 3;
-  unsigned fRank = 16;
+  unsigned fRank = 8;
 
   if (argc != 11) {
     cerr << "Using Default shape" << endl;
