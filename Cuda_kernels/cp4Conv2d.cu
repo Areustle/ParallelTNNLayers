@@ -94,9 +94,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     __syncthreads();
   }
 
-
-
-
   if (hBlockOff + h >= H) return;
   if (wBlockOff + w >= W) return;
 
@@ -164,7 +161,7 @@ void CP4Conv2dGPU(const float*   In,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned Bh   = 8;
+  unsigned Bh   = 4;
   unsigned Bw   = 16;
   unsigned sW   = fW - 1 + Bw;
   unsigned sH   = fH - 1 + Bh;

@@ -8,13 +8,16 @@
 
 using namespace std;
 
-float profile_cuda_conv2d_cp4_gpu(string exe, string line, string device) {
+float profile_cuda_conv2d_cp4_gpu(string profiler,
+                                  string exe,
+                                  string line,
+                                  string device) {
 
-  string cmd = "nv-nsight-cu-cli "
-               "--metrics gpu__time_duration.avg "
-               "--csv "
-               "--unit base "
-               "--device "
+  string cmd = profiler
+               + " --metrics gpu__time_duration.avg "
+                 " --csv "
+                 " --unit base "
+                 " --device "
                + device + " " + exe + " " + line + " " + device
                + " | tail -1"
                  " | rev"
@@ -35,16 +38,18 @@ float profile_cuda_conv2d_cp4_gpu(string exe, string line, string device) {
 }
 
 int main(int argc, char** argv) {
-  if (argc != 5) {
-    cerr << "USAGE: Benchmark Executable Tensor_file Results_file device_number"
+  if (argc != 6) {
+    cerr << "USAGE: Benchmark  Profiler  Executable  Tensor_file  Results_file "
+            " device_number"
          << argc << endl;
     return 1;
   } else {
 
-    string   exe(argv[1]);
-    ifstream tensors(argv[2]);
-    ofstream results(argv[3]);
-    string   device(argv[4]);
+    string   prof(argv[1]);
+    string   exe(argv[2]);
+    ifstream tensors(argv[3]);
+    ofstream results(argv[4]);
+    string   device(argv[5]);
 
     results << "N,C,H,W,pad,fK,fH,fW,fRank,ns" << endl;
 
@@ -57,7 +62,7 @@ int main(int argc, char** argv) {
         if (line[0] == '#' || line.empty()) continue;
 
         stringstream line_sm(line);
-        float        ns = profile_cuda_conv2d_cp4_gpu(exe, line, device);
+        float        ns = profile_cuda_conv2d_cp4_gpu(prof, exe, line, device);
         unsigned     N, H, W, C, pad, fK, fH, fW, fRank;
         line_sm >> N >> C >> H >> W >> pad >> fK >> fH >> fW >> fRank;
 
