@@ -12,6 +12,6 @@ Tensor random_fill(std::initializer_list<unsigned> lst,
 
 Tensor cp4recom(Tensor A, Tensor B, Tensor C, Tensor D);
 
-Tensor padNCHW(Tensor, unsigned);
+bool AllClose(Tensor, Tensor, float tolerance=1e-3);
 
 #endif /* CONV_UTILS_H */
