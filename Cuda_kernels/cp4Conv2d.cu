@@ -291,7 +291,7 @@ float CP4Conv2dGPU(tensor_shape params,
     cudaEventSynchronize(stop);
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    cumulativeNS += milliseconds * 1e6;
+    cumulativeNS += milliseconds;
   }
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
@@ -355,7 +355,7 @@ float CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaMalloc(&Out, p.N * p.fK * p.H * p.W * sizeof(float));
 
 
-  float ns
+  float ms
       = CP4Conv2dGPU(p, In, FilterK, FilterC, FilterH, FilterW, Out, PROFCOUNT);
 
   cudaFree(In);
@@ -365,7 +365,7 @@ float CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaFree(FilterW);
   cudaFree(Out);
 
-  return ns;
+  return ms;
 }
 
 

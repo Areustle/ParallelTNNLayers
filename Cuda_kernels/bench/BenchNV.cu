@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
   ofstream results(argv[2]);
   int      device(atoi(argv[3]));
 
-  results << "N,C,H,W,pad,fK,fH,fW,fRank,ns" << endl;
+  results << "N,C,H,W,pad,fK,fH,fW,ms" << endl;
 
 
   if (!tensors.is_open()) {
@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
   cudaSetDevice(device);
 
   for (auto& p : shapes) {
-    float ns = NV::run_convolution(p, 47);
+    float ms = NV::run_convolution(p, 47);
     results << p.N << "," << p.C << "," << p.H << "," << p.W << "," << p.pad
-            << "," << p.fK << "," << p.fH << "," << p.fW << "," << ns << endl;
+            << "," << p.fK << "," << p.fH << "," << p.fW << "," << ms << endl;
   }
 }

@@ -1,8 +1,8 @@
 #! /bin/bash
 
-GPUName=$1
+RUNNAME=$1
 deviceNum=$2
-THISDATE=$(date +%F_%H_%M)
+# THISDATE=$(date +%F_%H_%M)
 
 declare -a Problem_descriptor=(
  "batch_size"
@@ -16,7 +16,7 @@ for prob in "${Problem_descriptor[@]}"
 do
   $(./_build/Cuda_kernels/BenchCP4 \
     Cuda_kernels/bench/tensors_${prob}.txt \
-    Cuda_kernels/results/CP4Conv2dForward_results_${GPUName}_${THISDATE}_${prob}.txt \
+    Cuda_kernels/results/CP4Conv2dForward_results_${RUNNAME}_${prob}.txt \
     ${deviceNum})
   echo "Done ($prob)"
 done

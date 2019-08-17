@@ -104,7 +104,7 @@ float conv2d_forward_gpu(tensor_shape params,
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
 
-  float cumulativeNS = 0.0f;
+  float cumulativeMS = 0.0f;
   for (unsigned i = 0; i < PROFCOUNT; ++i) {
     cudaDeviceSynchronize();
     cudaEventRecord(start);
@@ -127,7 +127,7 @@ float conv2d_forward_gpu(tensor_shape params,
     cudaEventSynchronize(stop);
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    cumulativeNS += milliseconds * 1e6;
+    cumulativeMS += milliseconds;
   }
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
@@ -139,7 +139,7 @@ float conv2d_forward_gpu(tensor_shape params,
   cudnnDestroyConvolutionDescriptor(convolution_descriptor);
   cudnnDestroy(cudnn);
 
-  return (cumulativeNS / PROFCOUNT);
+  return (cumulativeMS / PROFCOUNT);
 }
 
 
@@ -179,13 +179,13 @@ float NV::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaMalloc(&Filter, p.fK * p.C * p.fH * p.fW * sizeof(float));
   cudaMalloc(&Out, p.N * p.fK * p.H * p.W * sizeof(float));
 
-  float ns = conv2d_forward_gpu(p, In, Filter, Out, PROFCOUNT);
+  float ms = conv2d_forward_gpu(p, In, Filter, Out, PROFCOUNT);
 
   cudaFree(In);
   cudaFree(Filter);
   cudaFree(Out);
 
-  return ns;
+  return ms;
 }
 
 
