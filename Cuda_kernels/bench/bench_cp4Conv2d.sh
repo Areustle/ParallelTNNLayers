@@ -1,9 +1,8 @@
 #! /bin/bash
 
-ProfBin=$1
-GPUName=$2
-deviceNum=$3
-THISDATE=$(date +%F_%H:%M)
+GPUName=$1
+deviceNum=$2
+THISDATE=$(date +%F_%H_%M)
 
 declare -a Problem_descriptor=(
  "batch_size"
@@ -15,9 +14,7 @@ declare -a Problem_descriptor=(
 
 for prob in "${Problem_descriptor[@]}"
 do
-  $(./_build/Cuda_kernels/Tensor_Benchmark \
-    ${ProfBin} \
-    ./_build/Cuda_kernels/CP4Conv2dForward \
+  $(./_build/Cuda_kernels/BenchCP4 \
     Cuda_kernels/bench/tensors_${prob}.txt \
     Cuda_kernels/results/CP4Conv2dForward_results_${GPUName}_${THISDATE}_${prob}.txt \
     ${deviceNum})

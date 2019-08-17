@@ -11,7 +11,7 @@ target_compile_features(Tensor PUBLIC cxx_std_11)
 # Dependencies
 # ##############################################################################
 target_link_libraries(NVConv2d PUBLIC cudnn PRIVATE Tensor)
-target_link_libraries(Utils PUBLIC Tensor)
+target_link_libraries(Utils PUBLIC Tensor PRIVATE curand)
 target_link_libraries(cp4conv PUBLIC Tensor)
 
 # ##############################################################################
@@ -41,11 +41,18 @@ add_test(test_main test_main)
 add_executable(CP4Conv2dForward cp4Conv2d.cu)
 add_executable(NVConv2dForward NVConv2d.cu)
 add_executable(Tensor_Benchmark bench/bench_generic.cu)
+add_executable(BenchCP4 bench/BenchCP4.cu)
+add_executable(BenchNV bench/BenchNV.cu)
+
 target_compile_features(Tensor_Benchmark PUBLIC cxx_std_11)
+target_compile_features(BenchCP4 PUBLIC cxx_std_11)
+target_compile_features(BenchNV PUBLIC cxx_std_11)
 
 target_link_libraries(CP4Conv2dForward PRIVATE Tensor)
 target_link_libraries(NVConv2dForward PRIVATE cudnn Tensor)
+target_link_libraries(BenchCP4 PRIVATE cp4conv)
+target_link_libraries(BenchNV PRIVATE NVConv2d)
 
-target_compile_options(CP4Conv2dForward PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-  --generate-line-info
-  >)
+target_compile_options(CP4Conv2dForward
+                       PRIVATE $<$<COMPILE_LANGUAGE:CUDA>: --generate-line-info
+                               >)

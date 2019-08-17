@@ -1,12 +1,13 @@
 #include "Utils.cuh"
+#include "iostream"
 
-#include <random>
+#include <curand.h>
 
 using namespace std;
 
 
 // Simple cuda error checking macro
-#define ErrChk(ans)                                                            \
+#define ErrChk(ans) \
   { CudaAssert((ans), __FILE__, __LINE__); }
 inline void
 CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
@@ -18,22 +19,14 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
 }
 
 
-Tensor random_fill(std::initializer_list<unsigned> lst, float lo, float hi) {
+Tensor random_fill(std::initializer_list<unsigned> lst) {
 
-  random_device               rd;
-  mt19937                     gen(rd());
-  uniform_real_distribution<> dis(lo, hi);
-
-  Tensor A(lst);
-
-  for (size_t i = 0; i < A.size(); ++i) A.m_data[i] = dis(gen);
-
-  /* curandGenerator_t gen; */
-  /* Tensor A(lst); */
-  /* ErrChk(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT)); */
-  /* ErrChk(curandSetPseudoRandomGeneratorSeed(gen, 1234ULL)); */
-  /* ErrChk(curandGenerateUniform(gen, A.m_data, A.size())); */
-  /* ErrChk(curandDestroyGenerator(gen)); */
+  curandGenerator_t gen;
+  Tensor            A(lst);
+  curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
+  curandSetPseudoRandomGeneratorSeed(gen, 1234ULL);
+  curandGenerateUniform(gen, A.m_data, A.size());
+  curandDestroyGenerator(gen);
 
   return A;
 };
@@ -51,21 +44,28 @@ __global__ void cp_recompose(float* __restrict__ Out,
                              const unsigned FW) {
 
   // clang-format off
-  for (unsigned a = 0; a < FK; ++a)
-  for (unsigned b = 0; b < FC; ++b)
-  for (unsigned c = 0; c < FH; ++c)
-  for (unsigned d = 0; d < FW; ++d)
-  for (unsigned r = 0; r < rank; ++r)
-    Out[a*FC*FH*FW + b*FH*FW + c*FW + d]
-      += FilterK[a*rank + r]
-       * FilterC[b*rank + r]
-       * FilterH[c*rank + r]
-       * FilterW[d*rank + r];
+  for (unsigned fc = threadIdx.z + blockIdx.z * blockDim.z; fc < FC; fc += blockDim.z*gridDim.z)
+  for (unsigned fh = threadIdx.y + blockIdx.y * blockDim.y; fh < FH; fh += blockDim.y*gridDim.y)
+  for (unsigned fw = threadIdx.x + blockIdx.x * blockDim.x; fw < FW; fw += blockDim.x*gridDim.x)
+  for (unsigned fk = 0; fk < FK; ++fk) {
+
+    float pixel = 0.0f;
+
+    for (unsigned rr = 0; rr < rank; ++rr) {
+      pixel += FilterK[fk * rank + rr]
+             * FilterC[fc * rank + rr]
+             * FilterH[fh * rank + rr]
+             * FilterW[fw * rank + rr];
+    }
+
+    Out[fk*FC*FH*FW + fc*FH*FW + fh*FW + fw] = pixel;
+  }
   // clang-format on
 }
 
 Tensor
 cp4recom(Tensor FilterK, Tensor FilterC, Tensor FilterH, Tensor FilterW) {
+
   const unsigned rank = FilterK.shape[1];
   const unsigned FK   = FilterK.shape[0];
   const unsigned FC   = FilterC.shape[0];
@@ -73,23 +73,22 @@ cp4recom(Tensor FilterK, Tensor FilterC, Tensor FilterH, Tensor FilterW) {
   const unsigned FW   = FilterW.shape[0];
   Tensor         Out  = { FK, FC, FH, FW };
 
-  /* const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0); */
-  /* const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0); */
-  /* const dim3     Gshp(WgrdDim, HgrdDim, N); */
-  /* const dim3     Bshp(Bw, Bh, 1); */
-  /* const dim3 BlockSize = A.size() <= 512 ? A.size() : 512; */
-  /* const dim3 GridSize  = (A.size() / 512) + (A.size() % 512); */
+  const unsigned W_dim = (FW / 8) + ((FW % 8) != 0);
+  const unsigned H_dim = (FH / 8) + ((FH % 8) != 0);
+  const unsigned C_dim = (FC / 8) + ((FC % 8) != 0);
+  const dim3     Gshp(W_dim, H_dim, C_dim);
+  const dim3     Bshp(8, 8, 8);
 
-  cp_recompose<<<1, 1>>>(Out.m_data,
-                         FilterK.m_data,
-                         FilterC.m_data,
-                         FilterH.m_data,
-                         FilterW.m_data,
-                         rank,
-                         FK,
-                         FC,
-                         FH,
-                         FW);
+  cp_recompose<<<Gshp, Bshp>>>(Out.m_data,
+                               FilterK.m_data,
+                               FilterC.m_data,
+                               FilterH.m_data,
+                               FilterW.m_data,
+                               rank,
+                               FK,
+                               FC,
+                               FH,
+                               FW);
 
   ErrChk(cudaPeekAtLastError());
   ErrChk(cudaDeviceSynchronize());
@@ -142,32 +141,38 @@ cp4recom(Tensor FilterK, Tensor FilterC, Tensor FilterH, Tensor FilterW) {
 
 __global__ void arrayRelativeDelta(int*        Exceeds,
                                    const float tol,
+                                   const int   size,
                                    const float* __restrict__ A,
                                    const float* __restrict__ B) {
   unsigned tid = threadIdx.x + blockIdx.x * blockDim.x;
-  float    a   = A[tid];
-  float    b   = B[tid];
-  float    d   = fabsf(a - b);
-  float    err = (a == 0 || b == 0) ? d : fmaxf(d / fabsf(a), d / fabsf(b));
-  if (err > tol) atomicCAS(Exceeds, 1, 0);
+  if (tid > size) return;
+
+  float a = A[tid];
+  float b = B[tid];
+  float d = fabsf(a - b);
+  float err = (a == 0 || b == 0) ? d : fmaxf(d / fabsf(a), d / fabsf(b));
+  if (err > tol) atomicAdd(Exceeds, 1);
 }
 
+
 bool AllClose(Tensor A, Tensor B, float tolerance) {
-  if (A.size() != B.size()) return false;
+  if (A.size() != B.size()) { return false; }
 
   int* Exceeds;
-  cudaMalloc(&Exceeds, sizeof(int));
-  cudaMemset(&Exceeds, 1, 1);
+  ErrChk(cudaMalloc(&Exceeds, sizeof(int)));
+  ErrChk(cudaMemset(Exceeds, 0, sizeof(int)));
 
-  unsigned BlockSize = A.size() <= 512 ? A.size() : 512;
-  unsigned GridSize  = (A.size() / 512) + (A.size() % 512);
-  arrayRelativeDelta<<<BlockSize, GridSize>>>(
-      Exceeds, tolerance, A.m_data, B.m_data);
+  unsigned GridSize = (A.size() / 512) + ((A.size() % 512) != 0);
+
+  arrayRelativeDelta<<<GridSize, 512>>>(
+      Exceeds, tolerance, A.size(), A.m_data, B.m_data);
+
   ErrChk(cudaPeekAtLastError());
   ErrChk(cudaDeviceSynchronize());
 
   int host_Exceeds;
-  cudaMemcpy(&host_Exceeds, Exceeds, 1, cudaMemcpyDeviceToHost);
+  ErrChk(
+      cudaMemcpy(&host_Exceeds, Exceeds, sizeof(int), cudaMemcpyDeviceToHost));
 
-  return host_Exceeds;
+  return host_Exceeds == 0;
 }

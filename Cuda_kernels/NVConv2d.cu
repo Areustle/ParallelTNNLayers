@@ -15,17 +15,21 @@ using namespace std;
     }                                                        \
   }
 
-void NV::conv2d_forward_gpu(float*   In,
-                            unsigned N,
-                            unsigned C,
-                            unsigned H,
-                            unsigned W,
-                            unsigned pad,
-                            float*   Filter,
-                            unsigned fK,
-                            unsigned fH,
-                            unsigned fW,
-                            float*   Out) {
+float conv2d_forward_gpu(tensor_shape params,
+                         float*       In,
+                         float*       Filter,
+                         float*       Out,
+                         unsigned     PROFCOUNT = 1) {
+
+  const unsigned N   = params.N;
+  const unsigned C   = params.C;
+  const unsigned H   = params.H;
+  const unsigned W   = params.W;
+  const unsigned pad = params.pad;
+  const unsigned fK  = params.fK;
+  const unsigned fH  = params.fH;
+  const unsigned fW  = params.fW;
+
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
 
@@ -92,31 +96,41 @@ void NV::conv2d_forward_gpu(float*   In,
                                                      &workspace_bytes));
 
   void* d_workspace{ nullptr };
-  cudaMallocManaged(&d_workspace, workspace_bytes);
-
-  float* d_input{ nullptr };
-  cudaMalloc(&d_input, N * C * H * W);
-  cudaMemcpy(d_input, In, N * C * H * W, cudaMemcpyHostToDevice);
-
-  size_t out_bytes = batch_size * channels * height * width * sizeof(float);
-  float* d_output{ nullptr };
-  cudaMalloc(&d_output, out_bytes);
-  cudaMemset(d_output, 0, out_bytes);
+  cudaMalloc(&d_workspace, workspace_bytes);
 
   const float alpha = 1, beta = 0;
-  cudnnConvolutionForward(cudnn,
-                          &alpha,
-                          input_descriptor,
-                          In,
-                          kernel_descriptor,
-                          Filter,
-                          convolution_descriptor,
-                          convolution_algorithm,
-                          d_workspace,
-                          workspace_bytes,
-                          &beta,
-                          output_descriptor,
-                          Out);
+
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+
+  float cumulativeNS = 0.0f;
+  for (unsigned i = 0; i < PROFCOUNT; ++i) {
+    cudaDeviceSynchronize();
+    cudaEventRecord(start);
+    cudnnConvolutionForward(cudnn,
+                            &alpha,
+                            input_descriptor,
+                            In,
+                            kernel_descriptor,
+                            Filter,
+                            convolution_descriptor,
+                            convolution_algorithm,
+                            d_workspace,
+                            workspace_bytes,
+                            &beta,
+                            output_descriptor,
+                            Out);
+    cudaDeviceSynchronize();
+    cudaEventRecord(stop);
+
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    cumulativeNS += milliseconds * 1e6;
+  }
+  cudaEventDestroy(start);
+  cudaEventDestroy(stop);
 
   cudaFree(d_workspace);
   cudnnDestroyTensorDescriptor(input_descriptor);
@@ -124,27 +138,60 @@ void NV::conv2d_forward_gpu(float*   In,
   cudnnDestroyFilterDescriptor(kernel_descriptor);
   cudnnDestroyConvolutionDescriptor(convolution_descriptor);
   cudnnDestroy(cudnn);
+
+  return (cumulativeNS / PROFCOUNT);
 }
 
+
+/*******************************************************************************
+ * Unified memory Tensorized call of Convolution
+ ******************************************************************************/
 Tensor NV::Conv2dForward(const Tensor In, const Tensor K, unsigned pad) {
 
+  tensor_shape params;
+  params.N   = In.shape[0];
+  params.C   = In.shape[1];
+  params.H   = In.shape[2];
+  params.W   = In.shape[3];
+  params.pad = pad;
+  params.fK  = K.shape[0];
+  params.fH  = K.shape[2];
+  params.fW  = K.shape[3];
+
   Tensor V({ In.shape[0], K.shape[0], In.shape[2], In.shape[3] });
-  NV::conv2d_forward_gpu(In.m_data,
-                         In.shape[0],
-                         In.shape[1],
-                         In.shape[2],
-                         In.shape[3],
-                         pad,
-                         K.m_data,
-                         K.shape[0],
-                         K.shape[2],
-                         K.shape[3],
-                         V.m_data);
+  conv2d_forward_gpu(params, In.m_data, K.m_data, V.m_data, 1);
 
   return V;
 }
 
 
+/*******************************************************************************
+ * run_convolution operation with a profile count loop
+ ******************************************************************************/
+float NV::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
+
+  float* In;
+  float* Out;
+  float* Filter;
+
+
+  cudaMalloc(&In, p.N * p.C * p.H * p.W * sizeof(float));
+  cudaMalloc(&Filter, p.fK * p.C * p.fH * p.fW * sizeof(float));
+  cudaMalloc(&Out, p.N * p.fK * p.H * p.W * sizeof(float));
+
+  float ns = conv2d_forward_gpu(p, In, Filter, Out, PROFCOUNT);
+
+  cudaFree(In);
+  cudaFree(Filter);
+  cudaFree(Out);
+
+  return ns;
+}
+
+
+/*******************************************************************************
+ * Main function. call 1 instance of kernel execution
+ ******************************************************************************/
 int main(int argc, char** argv) {
 
   unsigned N   = 5;
@@ -155,8 +202,6 @@ int main(int argc, char** argv) {
   unsigned fK  = 32;
   unsigned fH  = 3;
   unsigned fW  = 3;
-
-  /* int devcnt = -1; */
 
   if (argc != 11) {
     cudaSetDevice(0);
@@ -172,24 +217,17 @@ int main(int argc, char** argv) {
     fW  = atoi(argv[8]);
     // fRank var meaningless here
     cudaSetDevice(atoi(argv[10]));
-    /* cerr << atoi(argv[10]) << " " << argv[10] << endl; */
   }
 
-  /* cerr << cudaGetDevice(&devcnt) << endl; */
-  /* cerr << devcnt << endl; */
+  tensor_shape params;
+  params.N   = N;
+  params.C   = C;
+  params.H   = H;
+  params.W   = W;
+  params.pad = pad;
+  params.fK  = fK;
+  params.fH  = fH;
+  params.fW  = fW;
 
-  float* In;
-  float* Out;
-  float* Filter;
-
-
-  cudaMalloc(&In, N * C * H * W * sizeof(float));
-  cudaMalloc(&Filter, fK * C * fH * fW * sizeof(float));
-  cudaMalloc(&Out, N * fK * H * W * sizeof(float));
-
-  NV::conv2d_forward_gpu(In, N, C, H, W, pad, Filter, fK, fH, fW, Out);
-
-  cudaFree(In);
-  cudaFree(Filter);
-  cudaFree(Out);
+  NV::run_convolution(params, 1);
 }
