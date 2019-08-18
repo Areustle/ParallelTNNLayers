@@ -23,20 +23,27 @@ vector<tensor_shape> get_unique_ordered_shapes(vector<tensor_shape> input) {
 }
 
 int main(int argc, char** argv) {
-  if (argc != 4) {
-    cerr << "USAGE: BenchCP4 "
-            " Tensor_file "
-            " Results_file "
-            " device_number"
-         << endl;
-    return 1;
+
+  ifstream   tensors(argv[1]);
+  streambuf* output_buffer = std::cout.rdbuf();
+  ofstream   of;
+  int        device = 0;
+
+  switch (argc) {
+    case 4: device = atoi(argv[3]);
+    case 3: of.open(argv[2]); output_buffer = of.rdbuf();
+    case 2: break;
+    default:
+      cerr << "USAGE: BenchNV "
+              " Tensor_file "
+              " [Results_file] "
+              " [device_number]"
+           << endl;
+      return 1;
   }
 
-  ifstream tensors(argv[1]);
-  ofstream results(argv[2]);
-  int      device(atoi(argv[3]));
-
-  results << "N,C,H,W,pad,fK,fH,fW,ms" << endl;
+  ostream results(output_buffer);
+  results << "N,C,H,W,pad,fK,fH,fW,us" << endl;
 
 
   if (!tensors.is_open()) {
@@ -75,8 +82,8 @@ int main(int argc, char** argv) {
   cudaSetDevice(device);
 
   for (auto& p : shapes) {
-    float ms = NV::run_convolution(p, 47);
+    float us = NV::run_convolution(p, 47);
     results << p.N << "," << p.C << "," << p.H << "," << p.W << "," << p.pad
-            << "," << p.fK << "," << p.fH << "," << p.fW << "," << ms << endl;
+            << "," << p.fK << "," << p.fH << "," << p.fW << "," << us << endl;
   }
 }

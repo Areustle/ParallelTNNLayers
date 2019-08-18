@@ -81,12 +81,13 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     for (unsigned r = 0; r < Rank; ++r) tmpxl[r] = 0.0f;
 
     for (unsigned fh = 0; fh < FilterDim; ++fh)
-      for (unsigned fw = 0; fw < FilterDim; ++fw)
-#pragma unroll
+      for (unsigned fw = 0; fw < FilterDim; ++fw){
+        #pragma unroll
         for (unsigned r = 0; r < Rank; ++r)
           tmpxl[r] += shared_mem[(h + fh) * sW + (w + fw)]
                       * const_filter[offH + fh * Rank + r]
                       * const_filter[offW + fw * Rank + r];
+      }
 
     for (unsigned r = 0; r < Rank; ++r)
       local_pixel_acc[r] += tmpxl[r] * const_filter[offC + c * Rank + r];
@@ -106,7 +107,7 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
     for (unsigned r = 0; r < Rank; ++r)
       kth_filter_pixel
-          += local_pixel_acc[r] * const_filter[offK + 0 * Rank + r];
+          += local_pixel_acc[r] * const_filter[offK + k * Rank + r];
 
     Out[n * fK * H * W + k * H * W + (h + hBlockOff) * W + w + wBlockOff]
         = kth_filter_pixel;
@@ -183,7 +184,7 @@ float CP4Conv2dGPU(tensor_shape params,
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
-  float cumulativeNS = 0.0f;
+  float us = 0.0f;
 
   for (unsigned i = 0; i < PROFCOUNT; ++i) {
     ErrChk(cudaDeviceSynchronize());
@@ -282,21 +283,21 @@ float CP4Conv2dGPU(tensor_shape params,
         break;
       default: cerr << "Filter shape not supported!" << endl;
     }
-  
-    cudaEventRecord(stop);
     // clang-format on
+
+    cudaEventRecord(stop);
     ErrChk(cudaPeekAtLastError());
     ErrChk(cudaDeviceSynchronize());
 
     cudaEventSynchronize(stop);
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    cumulativeNS += milliseconds;
+    us += milliseconds * 1e3;
   }
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
 
-  return cumulativeNS / PROFCOUNT;
+  return us / PROFCOUNT;
 }
 
 
@@ -355,7 +356,7 @@ float CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaMalloc(&Out, p.N * p.fK * p.H * p.W * sizeof(float));
 
 
-  float ms
+  float us
       = CP4Conv2dGPU(p, In, FilterK, FilterC, FilterH, FilterW, Out, PROFCOUNT);
 
   cudaFree(In);
@@ -365,7 +366,7 @@ float CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaFree(FilterW);
   cudaFree(Out);
 
-  return ms;
+  return us;
 }
 
 

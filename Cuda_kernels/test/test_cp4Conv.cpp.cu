@@ -38,10 +38,11 @@ TEST_CASE("Convolution test") {
   REQUIRE(CP4.shape[2] == x);
   REQUIRE(CP4.shape[3] == x);
 
-  REQUIRE(AllClose(Cudnn, CP4, 1e-5));
+  /* for (int i = 0; i < Cudnn.size(); ++i) */
+  /*   REQUIRE(Cudnn.m_data[i] == doctest::Approx(CP4.m_data[i]).epsilon(1e-5));
+   */
 
-  for (int i = 0; i < Cudnn.size(); ++i)
-    REQUIRE(Cudnn.m_data[i] == doctest::Approx(CP4.m_data[i]).epsilon(1e-5));
+  REQUIRE(AllClose(Cudnn, CP4, 1e-5));
 }
 
 TEST_CASE("Extended Convolution Test") {
