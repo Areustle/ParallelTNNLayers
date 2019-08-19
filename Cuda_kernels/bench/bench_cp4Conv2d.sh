@@ -4,18 +4,17 @@ RUNNAME=$1
 deviceNum=$2
 # THISDATE=$(date +%F_%H_%M)
 
-declare -a Problem_descriptor=(
- "batch_size"
- "channel_depth"
- "image_size"
- "filter_count"
- "filter_size"
+declare -a Benchmark_Executable=(
+ "BatchSize"
+ "ChannelDepth"
+ "ImageSize"
+ "FilterCount"
+ "FilterSize"
 )
 
-for prob in "${Problem_descriptor[@]}"
+for prob in "${Benchmark_Executable[@]}"
 do
-  $(./_build/Cuda_kernels/BenchCP4 \
-    Cuda_kernels/bench/tensors_${prob}.txt \
+  $(./_build/Cuda_kernels/BenchCP4${prob} \
     Cuda_kernels/results/CP4Conv2dForward_results_${RUNNAME}_${prob}.txt \
     ${deviceNum})
   echo "Done ($prob)"
