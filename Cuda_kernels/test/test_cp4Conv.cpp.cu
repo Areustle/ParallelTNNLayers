@@ -13,24 +13,25 @@ using namespace std;
 
 TEST_CASE("Convolution test") {
 
-  unsigned n    = 1;
-  unsigned c    = 32;
-  unsigned x    = 128;
-  unsigned pad  = 1;
-  unsigned k    = 4;
-  unsigned f    = 3;
-  unsigned rank = 4;
+  static const unsigned n    = 1;
+  static const unsigned c    = 32;
+  static const unsigned x    = 128;
+  static const unsigned pad  = 1;
+  static const unsigned k    = 4;
+  static const unsigned f    = 3;
+  static const unsigned rank = 4;
 
-  auto Input = random_fill({ n, c, x, x });
-  auto K0    = random_fill({ k, rank });
-  auto K1    = random_fill({ c, rank });
-  auto K2    = random_fill({ f, rank });
-  auto K3    = random_fill({ f, rank });
-  auto K     = cp4recom(K0, K1, K2, K3);
+  Tensor Input = random_fill({ n, c, x, x });
+  Tensor K0    = random_fill({ k, rank });
+  Tensor K1    = random_fill({ c, rank });
+  Tensor K2    = random_fill({ f, rank });
+  Tensor K3    = random_fill({ f, rank });
+  Tensor K     = cp4recom(K0, K1, K2, K3);
 
-  auto Cudnn = NV::Conv2dForward(Input, K, pad);
+  Tensor Cudnn = NV::Conv2dForward(Input, K, pad);
 
-  auto CP4 = CP::Conv2dForward(Input, K0, K1, K2, K3, pad);
+  Tensor CP4 = CP::Conv2dForward<n, c, x, x, pad, k, f, f, rank>(
+      Input, K0, K1, K2, K3);
 
   REQUIRE(Cudnn.size() == CP4.size());
   REQUIRE(CP4.shape[0] == n);
@@ -45,56 +46,113 @@ TEST_CASE("Convolution test") {
   REQUIRE(AllClose(Cudnn, CP4, 1e-5));
 }
 
-TEST_CASE("Extended Convolution Test") {
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-  std::vector<std::string> tensor_list{
-    "Cuda_kernels/bench/tensors.txt",
-    "Cuda_kernels/bench/tensors_batch_size.txt",
-    "Cuda_kernels/bench/tensors_channel_depth.txt",
-    "Cuda_kernels/bench/tensors_image_size.txt",
-    "Cuda_kernels/bench/tensors_filter_count.txt",
-    "Cuda_kernels/bench/tensors_filter_size.txt",
-    "Cuda_kernels/bench/tensors_all_scales.txt",
-  };
+template<unsigned N,
+         unsigned C,
+         unsigned H,
+         unsigned W,
+         unsigned pad,
+         unsigned fK,
+         unsigned fH,
+         unsigned fW,
+         unsigned fRank>
+void TensorTest() {
 
-  for (auto t : tensor_list) {
-    ifstream tensors(t);
+  Tensor Input = random_fill({ N, C, H, W });
+  Tensor K0    = random_fill({ fK, fRank });
+  Tensor K1    = random_fill({ C, fRank });
+  Tensor K2    = random_fill({ fH, fRank });
+  Tensor K3    = random_fill({ fW, fRank });
 
-    REQUIRE(tensors.is_open());
-    string line;
-    while (getline(tensors, line)) {
+  Tensor K     = cp4recom(K0, K1, K2, K3);
+  Tensor Cudnn = NV::Conv2dForward(Input, K, pad);
 
-      if (line[0] == '#' || line.empty()) continue;
+  Tensor CP4 = CP::Conv2dForward<N, C, H, W, pad, fK, fH, fW, fRank>(
+      Input, K0, K1, K2, K3);
 
-      stringstream line_sm(line);
-      unsigned     N, H, W, C, pad, fK, fH, fW, fRank;
-      line_sm >> N >> C >> H >> W >> pad >> fK >> fH >> fW >> fRank;
+  REQUIRE(Cudnn.size() == CP4.size());
+  REQUIRE(CP4.shape[0] == N);
+  REQUIRE(CP4.shape[1] == fK);
+  REQUIRE(CP4.shape[2] == H);
+  REQUIRE(CP4.shape[3] == W);
 
-      auto Input   = random_fill({ N, C, H, W });
-      auto FilterK = random_fill({ fK, fRank });
-      auto FilterC = random_fill({ C, fRank });
-      auto FilterH = random_fill({ fH, fRank });
-      auto FilterW = random_fill({ fW, fRank });
-      auto Filter  = cp4recom(FilterK, FilterC, FilterH, FilterW);
 
-      auto Cudnn = NV::Conv2dForward(Input, Filter, pad);
+  /* for (int i = 0; i < Cudnn.size(); ++i) */
+  /*   REQUIRE(Cudnn.m_data[i] == doctest::Approx(CP4.m_data[i]).epsilon(1e-3)); */
 
-      auto CP4
-          = CP::Conv2dForward(Input, FilterK, FilterC, FilterH, FilterW, pad);
+  string error_message = "Incorrect result with "
+    + to_string(N) + " , "
+    + to_string(C) + " , "
+    + to_string(H) + " , "
+    + to_string(W) + " , "
+    + to_string(pad) + " , "
+    + to_string(fK) + " , "
+    + to_string(fH) + " , "
+    + to_string(fW) + " , "
+    + to_string(fRank);
 
-      REQUIRE(Cudnn.size() == CP4.size());
-      REQUIRE(CP4.shape[0] == N);
-      REQUIRE(CP4.shape[1] == fK);
-      REQUIRE(CP4.shape[2] == H);
-      REQUIRE(CP4.shape[3] == W);
-      REQUIRE_MESSAGE(
-          /* Cudnn.m_data[i] */
-          /*     == doctest::Approx(CP4.m_data[i]).epsilon(1e-5), */
-          AllClose(Cudnn, CP4, 1e-5),
-          "Incorrect result with " << line << " Parsed as " << N << "," << C
-                                   << "," << H << "," << W << "," << pad << ","
-                                   << fK << "," << fH << "," << fW << ","
-                                   << fRank);
-    }
-  }
+  CHECK_MESSAGE(AllClose(Cudnn, CP4, 1e-5), error_message);
 }
+
+template<unsigned rank> void test_helper() {
+
+  test_helper<rank - 1>();
+
+  // Batch Size
+  TensorTest<1, 3, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<2, 3, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<4, 3, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<8, 3, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<16, 3, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<32, 3, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<64, 3, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<128, 3, 512, 512, 1, 1, 3, 3, rank>();
+
+  // Image Size
+  TensorTest<1, 3, 32, 32, 1, 1, 3, 3, rank>();     // 1
+  TensorTest<1, 3, 64, 64, 1, 1, 3, 3, rank>();     // 2
+  TensorTest<1, 3, 128, 128, 1, 1, 3, 3, rank>();   // 3
+  TensorTest<1, 3, 256, 256, 1, 1, 3, 3, rank>();   // 4
+  TensorTest<1, 3, 512, 512, 1, 1, 3, 3, rank>();   // 5
+  TensorTest<1, 3, 1024, 1024, 1, 1, 3, 3, rank>(); // 6
+  TensorTest<1, 3, 2048, 2048, 1, 1, 3, 3, rank>(); // 7
+  TensorTest<1, 3, 4096, 4096, 1, 1, 3, 3, rank>(); // 8
+
+  // Channel Depth
+  TensorTest<1, 1, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<1, 2, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<1, 4, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<1, 8, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<1, 16, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<1, 32, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<1, 64, 512, 512, 1, 1, 3, 3, rank>();
+  TensorTest<1, 128, 512, 512, 1, 1, 3, 3, rank>();
+
+  // Output Channels
+  TensorTest<1, 3, 512, 512, 1, 1,   3, 3, rank>();
+  TensorTest<1, 3, 512, 512, 1, 2,   3, 3, rank>();
+  TensorTest<1, 3, 512, 512, 1, 4,   3, 3, rank>();
+  TensorTest<1, 3, 512, 512, 1, 8,   3, 3, rank>();
+  TensorTest<1, 3, 512, 512, 1, 16,  3, 3, rank>();
+  TensorTest<1, 3, 512, 512, 1, 32,  3, 3, rank>();
+  TensorTest<1, 3, 512, 512, 1, 64,  3, 3, rank>();
+  TensorTest<1, 3, 512, 512, 1, 128, 3, 3, rank>();
+
+  // Filter Size
+  TensorTest<1, 3, 512, 512, 1, 1, 3, 3,   rank>();
+  TensorTest<1, 3, 512, 512, 2, 1, 5, 5,   rank>();
+  TensorTest<1, 3, 512, 512, 3, 1, 7, 7,   rank>();
+  TensorTest<1, 3, 512, 512, 4, 1, 9, 9,   rank>();
+  TensorTest<1, 3, 512, 512, 5, 1, 11, 11, rank>();
+  TensorTest<1, 3, 512, 512, 6, 1, 13, 13, rank>();
+  TensorTest<1, 3, 512, 512, 7, 1, 15, 15, rank>();
+  TensorTest<1, 3, 512, 512, 8, 1, 17, 17, rank>();
+
+  TensorTest<32, 32, 512, 512, 1, 32, 3, 3, rank>();
+}
+template<> void test_helper<0>() {}
+
+
+TEST_CASE("Extended Convolution Test") { test_helper<16>(); }

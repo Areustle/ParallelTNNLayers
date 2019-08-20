@@ -4,6 +4,8 @@
 #include <iostream>
 #include <stdlib.h>
 
+#include "Tensor.cuh"
+
 using namespace std;
 // Simple cuda error checking macro
 #define ErrChk(ans) \
@@ -23,15 +25,6 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
 __constant__ float const_filter[4096];
 
 ///////////////////////////////////////////////////////////////////////////////
-/* static constexpr unsigned N     = 64; */
-/* static constexpr unsigned C     = 64; */
-/* static constexpr unsigned H     = 64; */
-/* static constexpr unsigned W     = 64; */
-/* static constexpr unsigned pad   = 1; */
-/* static constexpr unsigned fK    = 64; */
-/* static constexpr unsigned fH    = 3; */
-/* static constexpr unsigned fW    = 3; */
-/* static constexpr unsigned fRank = 16; */
 ///////////////////////////////////////////////////////////////////////////////
 static constexpr unsigned Bh = 16;
 static constexpr unsigned Bw = 16;
@@ -90,6 +83,7 @@ conv2d_cp4_kernel(float* __restrict__ Out, const float* __restrict__ Input) {
                   : (0.0f); // Pad with Zeros if outside the bounds
 
     __syncthreads();
+
     // Handle block / input size mismatch. This occurs here and not earlier
     // So that these threads can still participate in the cooperative shared
     // Memory load.
@@ -144,13 +138,13 @@ template<unsigned N,
          unsigned fH,
          unsigned fW,
          unsigned fRank>
-float CP4Conv2dGPU(const float* In,
-                   const float* FilterK,
-                   const float* FilterC,
-                   const float* FilterH,
-                   const float* FilterW,
-                   float*       Out,
-                   unsigned     PROFCOUNT = 1) {
+float cp4_conv2d_forward(const float* In,
+                         const float* FilterK,
+                         const float* FilterC,
+                         const float* FilterH,
+                         const float* FilterW,
+                         float*       Out,
+                         unsigned     PROFCOUNT = 1) {
 
   static constexpr unsigned offK    = 0;
   static constexpr unsigned offC    = offK + (fK * fRank);
@@ -227,6 +221,38 @@ float CP4Conv2dGPU(const float* In,
 
 namespace CP {
 
+  /****************************************************************************
+   * Unified memory Tensorized call of Convolution in GPU
+   * Call convolution with Tensors for testing
+   ****************************************************************************/
+  template<unsigned N,
+           unsigned C,
+           unsigned H,
+           unsigned W,
+           unsigned pad,
+           unsigned fK,
+           unsigned fH,
+           unsigned fW,
+           unsigned fRank>
+  Tensor Conv2dForward(Tensor Input,
+                       Tensor FilterK,
+                       Tensor FilterC,
+                       Tensor FilterH,
+                       Tensor FilterW) {
+
+    Tensor Out{ N, fK, H, W };
+
+    cp4_conv2d_forward<N, C, H, W, pad, fK, fH, fW, fRank>(Input.m_data,
+                                                           FilterK.m_data,
+                                                           FilterC.m_data,
+                                                           FilterH.m_data,
+                                                           FilterW.m_data,
+                                                           Out.m_data,
+                                                           1);
+
+    return Out;
+  }
+
 
   /*******************************************************************************
    * Run_convolution operation with a profile count loop
@@ -257,7 +283,7 @@ namespace CP {
     cudaMalloc(&Out, N * fK * H * W * sizeof(float));
 
 
-    float us = CP4Conv2dGPU<N, C, H, W, pad, fK, fH, fW, fRank>(
+    float us = cp4_conv2d_forward<N, C, H, W, pad, fK, fH, fW, fRank>(
         In, FilterK, FilterC, FilterH, FilterW, Out, PROFCOUNT);
 
     cudaFree(In);
