@@ -7,6 +7,7 @@
 namespace NV {
 
   Tensor Conv2dForward(const Tensor, const Tensor, unsigned);
+  Tensor Conv2dBackwardData(const Tensor, const Tensor, unsigned);
 
   float run_convolution(tensor_shape, unsigned PROFCOUNT = 1);
 

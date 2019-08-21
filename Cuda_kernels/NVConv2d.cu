@@ -158,11 +158,179 @@ Tensor NV::Conv2dForward(const Tensor In, const Tensor K, unsigned pad) {
   params.fH  = K.shape[2];
   params.fW  = K.shape[3];
 
-  Tensor V({ In.shape[0], K.shape[0], In.shape[2], In.shape[3] });
+  Tensor V({ params.N, params.fK, params.fH, params.fW });
   conv2d_forward_gpu(params, In.m_data, K.m_data, V.m_data, 1);
 
   return V;
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+float conv2d_backward_data_gpu(tensor_shape params,
+                         float*       In,
+                         float*       Filter,
+                         float*       Out,
+                         unsigned     PROFCOUNT = 1) {
+
+  const unsigned N   = params.N;
+  const unsigned C   = params.C;
+  const unsigned H   = params.H;
+  const unsigned W   = params.W;
+  const unsigned pad = params.pad;
+  const unsigned fK  = params.fK;
+  const unsigned fH  = params.fH;
+  const unsigned fW  = params.fW;
+
+  cudnnHandle_t cudnn;
+  cudnnCreate(&cudnn);
+
+  cudnnTensorDescriptor_t input_descriptor;
+  checkCUDNN(cudnnCreateTensorDescriptor(&input_descriptor));
+  checkCUDNN(cudnnSetTensor4dDescriptor(
+      input_descriptor, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, N, C, H, W));
+
+  cudnnFilterDescriptor_t kernel_descriptor;
+  checkCUDNN(cudnnCreateFilterDescriptor(&kernel_descriptor));
+  checkCUDNN(cudnnSetFilter4dDescriptor(
+      kernel_descriptor, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, fK, C, fH, fW));
+
+  cudnnConvolutionDescriptor_t convolution_descriptor;
+  checkCUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
+  checkCUDNN(cudnnSetConvolution2dDescriptor(convolution_descriptor,
+                                             /*pad_height=*/pad,
+                                             /*pad_width=*/pad,
+                                             /*vertical_stride=*/1,
+                                             /*horizontal_stride=*/1,
+                                             /*dilation_height=*/1,
+                                             /*dilation_width=*/1,
+                                             /*mode=*/CUDNN_CROSS_CORRELATION,
+                                             /*computeType=*/CUDNN_DATA_FLOAT));
+
+  /* int batch_size{ 0 }, channels{ 0 }, height{ 0 }, width{ 0 }; */
+  /* checkCUDNN(cudnnGetConvolution2dForwardOutputDim(convolution_descriptor, */
+  /*                                                  input_descriptor, */
+  /*                                                  kernel_descriptor, */
+  /*                                                  &batch_size, */
+  /*                                                  &channels, */
+  /*                                                  &height, */
+  /*                                                  &width)); */
+
+  cudnnTensorDescriptor_t output_descriptor;
+  checkCUDNN(cudnnCreateTensorDescriptor(&output_descriptor));
+  checkCUDNN(cudnnSetTensor4dDescriptor(output_descriptor,
+                                        CUDNN_TENSOR_NCHW,
+                                        CUDNN_DATA_FLOAT,
+                                        N,
+                                        fK,
+                                        H,
+                                        W));
+
+
+  cudnnConvolutionBwdDataAlgo_t convolution_algorithm;
+  checkCUDNN(
+      cudnnGetConvolutionBackwardDataAlgorithm(cudnn,
+                                          kernel_descriptor,
+                                          input_descriptor,
+                                          convolution_descriptor,
+                                          output_descriptor,
+                                          CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST,
+                                          /*memoryLimitInBytes=*/0,
+                                          &convolution_algorithm));
+
+  size_t workspace_bytes{ 0 };
+  checkCUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(cudnn,
+                                                     kernel_descriptor,
+                                                     input_descriptor,
+                                                     convolution_descriptor,
+                                                     output_descriptor,
+                                                     convolution_algorithm,
+                                                     &workspace_bytes));
+
+  void* d_workspace{ nullptr };
+  cudaMalloc(&d_workspace, workspace_bytes);
+
+  const float alpha = 1, beta = 0;
+
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+
+  float us = 0.0f;
+  for (unsigned i = 0; i < PROFCOUNT; ++i) {
+    cudaDeviceSynchronize();
+    cudaEventRecord(start);
+    cudnnConvolutionBackwardData(cudnn,
+                            &alpha,
+                            kernel_descriptor,
+                            Filter,
+                            input_descriptor,
+                            In,
+                            convolution_descriptor,
+                            convolution_algorithm,
+                            d_workspace,
+                            workspace_bytes,
+                            &beta,
+                            output_descriptor,
+                            Out);
+    cudaDeviceSynchronize();
+    cudaEventRecord(stop);
+
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    us += milliseconds * 1e3;
+  }
+  cudaEventDestroy(start);
+  cudaEventDestroy(stop);
+
+  cudaFree(d_workspace);
+  cudnnDestroyTensorDescriptor(input_descriptor);
+  cudnnDestroyTensorDescriptor(output_descriptor);
+  cudnnDestroyFilterDescriptor(kernel_descriptor);
+  cudnnDestroyConvolutionDescriptor(convolution_descriptor);
+  cudnnDestroy(cudnn);
+
+  return (us / PROFCOUNT);
+}
+
+
+/*******************************************************************************
+ * Unified memory Tensorized call of Convolution
+ ******************************************************************************/
+Tensor NV::Conv2dBackwardData(const Tensor In, const Tensor K, unsigned pad) {
+
+  tensor_shape params;
+  params.N   = In.shape[0];
+  params.C   = In.shape[1];
+  params.H   = In.shape[2];
+  params.W   = In.shape[3];
+  params.pad = pad;
+  params.fK  = K.shape[0];
+  params.fH  = K.shape[2];
+  params.fW  = K.shape[3];
+
+  Tensor V({ In.shape[0], K.shape[0], In.shape[2], In.shape[3] });
+  conv2d_backward_data_gpu(params, In.m_data, K.m_data, V.m_data, 1);
+
+  return V;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
 
 
 /*******************************************************************************
