@@ -46,28 +46,35 @@
 /*   for (int i = 0; i < V.size(); ++i) REQUIRE(V.m_data[i] != 0); */
 /* } */
 
-Tensor conv2d_data_grad(Tensor const dU, Tensor const K) {
+Tensor conv2d_data_grad(Tensor const dU, Tensor const K, const unsigned pad) {
 
   const unsigned H  = dU.shape[2];
   const unsigned W  = dU.shape[3];
   const unsigned FH = K.shape[2];
   const unsigned FW = K.shape[3];
+  const unsigned sH = H+2*pad;
+  const unsigned sW = W+2*pad;
 
   Tensor R = {H, W};
-  /* Tensor padU = {H+1, W+1}; */
+  Tensor shared_mem = {sH, sW};
 
-  /* for (int  i = 0;  i <  H;  ++i) */
-  /* for (int  j = 0;  j <  W;  ++j) */
-  /*   padU.m_data[i*(W+2)+j] = (j >= 1 && j < H + 1 && i >= 1 && i < W+1) */ 
-  /*     ? dU[j] */
+  for (int i = 0; i < sH; ++i)
+  for (int j = 0; j < sW; ++j)
+    shared_mem.m_data[i*sW+j]
+      = (j >= pad
+          && j < H + pad
+          && i >= pad
+          && i < W+pad)
+      ? dU.m_data[(i-pad)*W + (j-pad)]
+      : 0.0f;
 
-  for (int  i = 0;  i <  H;  ++i)
-  for (int  j = 0;  j <  W;  ++j){
-    for (int fh = 0; fh < FH; --fh)
-    for (int fw = 0; fw < FW; --fw)
-      R.m_data[i*W + j]
-        += dU.m_data[(i+fh)*W + (j+fw)]
-        * K.m_data[(FH-1-fh)*FW + (FW-1-fw)];
+  for (int h = 0; h < H; ++h)
+  for (int w = 0; w < W; ++w) {
+    for (int fh = 0; fh < FH; ++fh)
+    for (int fw = 0; fw < FW; ++fw)
+      R.m_data[h*W + w]
+        += shared_mem.m_data[(h+fh)*sW + (w+fw)]
+        * K.m_data[(FH-1-fh)*FW+(FW-1-fw)];
   }
 
   return R;
@@ -77,9 +84,16 @@ TEST_CASE("cpu backward filter") {
 
   Tensor dU = random_fill({ 1, 1, 32, 32 });
   Tensor K  = random_fill({ 1, 1, 3, 3 });
+  unsigned pad = 1;
 
-  auto V    = NV::Conv2dBackwardData(dU, K, 1);
-  auto MINE = conv2d_data_grad(dU, K);
+  auto V    = NV::Conv2dBackwardData(dU, K, pad);
+  auto MINE = conv2d_data_grad(dU, K, pad);
+
+  CHECK(V.size() == dU.size());
+  CHECK(MINE.size() == V.size());
+
+  for (int i = 0; i < V.size(); ++i)
+    CHECK(V.m_data[i] == doctest::Approx(MINE.m_data[i]).epsilon(1e-5));
 
   REQUIRE(AllClose(V, MINE, 1e-5));
 }
