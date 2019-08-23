@@ -14,13 +14,15 @@ struct tensor_shape {
   unsigned W     = 0;
   unsigned pad   = 0;
   unsigned fK    = 0;
+  unsigned fC    = 0;
   unsigned fH    = 0;
   unsigned fW    = 0;
   unsigned fRank = 0;
 
   friend bool operator<(const tensor_shape l, const tensor_shape r) {
-    return std::tie(l.N, l.C, l.H, l.W, l.pad, l.fK, l.fH, l.fW, l.fRank)
-           < std::tie(r.N, r.C, r.H, r.W, r.pad, r.fK, r.fH, r.fW, r.fRank);
+    return std::tie(l.N, l.C, l.H, l.W, l.pad, l.fK, l.fC, l.fH, l.fW, l.fRank)
+           < std::tie(
+               r.N, r.C, r.H, r.W, r.pad, r.fK, l.fC, r.fH, r.fW, r.fRank);
   }
 };
 
