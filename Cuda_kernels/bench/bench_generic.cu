@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
     ofstream results(argv[4]);
     string   device(argv[5]);
 
-    results << "N,C,H,W,pad,fK,fH,fW,fRank,ns" << endl;
+    results << "N,C,H,W,pad,T,Y,X,Rank,ns" << endl;
 
     if (!tensors.is_open()) {
       cerr << "Couldn't open tensors file.\n";
@@ -63,11 +63,11 @@ int main(int argc, char** argv) {
 
         stringstream line_sm(line);
         float        ns = profile_cuda_conv2d_cp4_gpu(prof, exe, line, device);
-        unsigned     N, H, W, C, pad, fK, fH, fW, fRank;
-        line_sm >> N >> C >> H >> W >> pad >> fK >> fH >> fW >> fRank;
+        unsigned     N, H, W, C, pad, T, Y, X, Rank;
+        line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X >> Rank;
 
         results << N << "," << C << "," << H << "," << W << "," << pad << ","
-                << fK << "," << fH << "," << fW << "," << fRank << "," << ns
+                << T << "," << Y << "," << X << "," << Rank << "," << ns
                 << endl;
       }
     }

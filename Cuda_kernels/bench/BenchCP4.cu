@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
   }
 
   ostream results(output_buffer);
-  results << "N,C,H,W,pad,fK,fH,fW,fRank,us" << endl;
+  results << "N,C,H,W,pad,T,Y,X,Rank,us" << endl;
 
 
   if (!tensors.is_open()) {
@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
     if (line[0] == '#' || line.empty()) continue;
 
     stringstream line_sm(line);
-    unsigned     N, H, W, C, pad, fK, fH, fW, fRank;
-    line_sm >> N >> C >> H >> W >> pad >> fK >> fH >> fW >> fRank;
+    unsigned     N, H, W, C, pad, T, Y, X, Rank;
+    line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X >> Rank;
 
     tensor_shape params;
     params.N     = N;
@@ -69,10 +69,10 @@ int main(int argc, char** argv) {
     params.H     = H;
     params.W     = W;
     params.pad   = pad;
-    params.fRank = fRank;
-    params.fK    = fK;
-    params.fH    = fH;
-    params.fW    = fW;
+    params.Rank = Rank;
+    params.T    = T;
+    params.Y    = Y;
+    params.X    = X;
 
     shapes.push_back(params);
   }
@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
   for (auto& p : shapes) {
     float us = CP::run_convolution(p, 47);
     results << p.N << "," << p.C << "," << p.H << "," << p.W << "," << p.pad
-            << "," << p.fK << "," << p.fH << "," << p.fW << "," << p.fRank
+            << "," << p.T << "," << p.Y << "," << p.X << "," << p.Rank
             << ", " << us << endl;
   }
 }
