@@ -24,6 +24,7 @@ namespace CP {
                               Tensor const,
                               Tensor const,
                               Tensor const,
+                              Tensor const,
                               unsigned pad = 1);
 
   float run_convolution(tensor_shape, unsigned PROFCOUNT = 1);

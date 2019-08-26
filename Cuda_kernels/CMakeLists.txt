@@ -7,6 +7,7 @@ add_library(NVConv2d SHARED NVConv2d.cu)
 add_library(cp4conv SHARED cp4Conv2d.cu)
 add_library(cp4convForward OBJECT cp4Conv2dForward.cu)
 add_library(cp4convBackwardData OBJECT cp4Conv2dBackwardData.cu)
+add_library(cp4convBackwardFilter OBJECT cp4Conv2dBackwardFilter.cu)
 target_compile_features(Tensor PUBLIC cxx_std_11)
 
 # ##############################################################################
@@ -16,7 +17,10 @@ target_link_libraries(NVConv2d PUBLIC cudnn PRIVATE Tensor)
 target_link_libraries(Utils PUBLIC Tensor PRIVATE curand)
 target_link_libraries(cp4conv
                       PUBLIC Tensor
-                      PRIVATE cp4convForward cp4convBackwardData)
+                      PRIVATE Utils
+                              cp4convForward
+                              cp4convBackwardData
+                              cp4convBackwardFilter)
 
 # ##############################################################################
 # Tests

@@ -26,9 +26,9 @@ float conv2d_forward_gpu(tensor_shape params,
   const unsigned H   = params.H;
   const unsigned W   = params.W;
   const unsigned pad = params.pad;
-  const unsigned T  = params.T;
-  const unsigned Y  = params.Y;
-  const unsigned X  = params.X;
+  const unsigned T   = params.T;
+  const unsigned Y   = params.Y;
+  const unsigned X   = params.X;
 
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
@@ -153,10 +153,10 @@ Tensor NV::Conv2dForward(const Tensor In, const Tensor K, unsigned pad) {
   params.H   = In.shape[2];
   params.W   = In.shape[3];
   params.pad = pad;
-  params.T  = K.shape[0];
-  params.C  = K.shape[1];
-  params.Y  = K.shape[2];
-  params.X  = K.shape[3];
+  params.T   = K.shape[0];
+  params.C   = K.shape[1];
+  params.Y   = K.shape[2];
+  params.X   = K.shape[3];
 
   Tensor V({ params.N, params.T, params.H, params.W });
   conv2d_forward_gpu(params, In.m_data, K.m_data, V.m_data, 1);
@@ -180,10 +180,10 @@ float conv2d_backward_data_gpu(tensor_shape params,
   const unsigned H   = params.H;
   const unsigned W   = params.W;
   const unsigned pad = params.pad;
-  const unsigned T  = params.T;
+  const unsigned T   = params.T;
   const unsigned C   = params.C;
-  const unsigned Y  = params.Y;
-  const unsigned X  = params.X;
+  const unsigned Y   = params.Y;
+  const unsigned X   = params.X;
 
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
@@ -297,10 +297,10 @@ NV::Conv2dBackwardData(const Tensor Upstream, const Tensor K, unsigned pad) {
   params.H   = Upstream.shape[2];
   params.W   = Upstream.shape[3];
   params.pad = pad;
-  params.T  = K.shape[0];
-  params.C  = K.shape[1];
-  params.Y  = K.shape[2];
-  params.X  = K.shape[3];
+  params.T   = K.shape[0];
+  params.C   = K.shape[1];
+  params.Y   = K.shape[2];
+  params.X   = K.shape[3];
 
   Tensor V({ params.N, params.C, params.H, params.W });
   conv2d_backward_data_gpu(params, Upstream.m_data, K.m_data, V.m_data, 1);
@@ -315,8 +315,8 @@ NV::Conv2dBackwardData(const Tensor Upstream, const Tensor K, unsigned pad) {
 ////////////////////////////////////////////////////////////////////////////////
 
 float conv2d_backward_filter_gpu(tensor_shape params,
-                                 float*       Input,
                                  float*       Upstream,
+                                 float*       Input,
                                  float*       Out,
                                  unsigned     PROFCOUNT = 1) {
 
@@ -324,10 +324,10 @@ float conv2d_backward_filter_gpu(tensor_shape params,
   const unsigned H   = params.H;
   const unsigned W   = params.W;
   const unsigned pad = params.pad;
-  const unsigned T  = params.T;
-  const unsigned C  = params.C;
-  const unsigned Y  = params.Y;
-  const unsigned X  = params.X;
+  const unsigned T   = params.T;
+  const unsigned C   = params.C;
+  const unsigned Y   = params.Y;
+  const unsigned X   = params.X;
 
   cudnnHandle_t cudnn;
   cudnnCreate(&cudnn);
@@ -431,8 +431,8 @@ float conv2d_backward_filter_gpu(tensor_shape params,
 /*******************************************************************************
  * Unified memory Tensorized call of Convolution
  ******************************************************************************/
-Tensor NV::Conv2dBackwardFilter(const Tensor Input,
-                                const Tensor Upstream,
+Tensor NV::Conv2dBackwardFilter(const Tensor dLdO,
+                                const Tensor Input,
                                 const Tensor Filter,
                                 unsigned     pad) {
 
@@ -442,13 +442,13 @@ Tensor NV::Conv2dBackwardFilter(const Tensor Input,
   params.H   = Input.shape[2];
   params.W   = Input.shape[3];
   params.pad = pad;
-  params.T  = Filter.shape[0];
-  params.C  = Filter.shape[1];
-  params.Y  = Filter.shape[2];
-  params.X  = Filter.shape[3];
+  params.T   = Filter.shape[0];
+  params.C   = Filter.shape[1];
+  params.Y   = Filter.shape[2];
+  params.X   = Filter.shape[3];
 
   Tensor V({ params.T, params.C, params.Y, params.X });
-  conv2d_backward_filter_gpu(params, Input.m_data, Upstream.m_data, V.m_data, 1);
+  conv2d_backward_filter_gpu(params, dLdO.m_data, Input.m_data, V.m_data, 1);
 
   return V;
 }
@@ -494,9 +494,9 @@ int main(int argc, char** argv) {
   unsigned H   = 1024;
   unsigned W   = 1024;
   unsigned pad = 1;
-  unsigned T  = 32;
-  unsigned Y  = 3;
-  unsigned X  = 3;
+  unsigned T   = 32;
+  unsigned Y   = 3;
+  unsigned X   = 3;
 
   if (argc != 11) {
     cudaSetDevice(0);
@@ -507,9 +507,9 @@ int main(int argc, char** argv) {
     H   = atoi(argv[3]);
     W   = atoi(argv[4]);
     pad = atoi(argv[5]);
-    T  = atoi(argv[6]);
-    Y  = atoi(argv[7]);
-    X  = atoi(argv[8]);
+    T   = atoi(argv[6]);
+    Y   = atoi(argv[7]);
+    X   = atoi(argv[8]);
     // Rank var meaningless here
     cudaSetDevice(atoi(argv[10]));
   }
@@ -520,9 +520,9 @@ int main(int argc, char** argv) {
   params.H   = H;
   params.W   = W;
   params.pad = pad;
-  params.T  = T;
-  params.Y  = Y;
-  params.X  = X;
+  params.T   = T;
+  params.Y   = Y;
+  params.X   = X;
 
   NV::run_convolution(params, 1);
 }
