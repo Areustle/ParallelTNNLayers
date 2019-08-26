@@ -26,6 +26,7 @@ Tensor random_fill(std::initializer_list<unsigned> lst) {
   curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
   curandSetPseudoRandomGeneratorSeed(gen, 1234ULL);
   curandGenerateUniform(gen, A.m_data, A.size());
+  cudaDeviceSynchronize();
   curandDestroyGenerator(gen);
 
   return A;
