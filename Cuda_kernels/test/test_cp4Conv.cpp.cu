@@ -15,10 +15,10 @@ TEST_CASE("Single Convolution Kernel test") {
 
   unsigned n    = 1;
   unsigned c    = 1;
-  unsigned x    = 3;
-  unsigned pad  = 1;
+  unsigned x    = 1;
+  unsigned pad  = 0;
   unsigned t    = 1;
-  unsigned f    = 3;
+  unsigned f    = 1;
   unsigned rank = 1;
 
   /* SUBCASE("Forward Convolution Data test") { */
@@ -73,6 +73,14 @@ TEST_CASE("Single Convolution Kernel test") {
     auto FX = random_fill({ f, rank });
     auto K  = cp4recom(FT, FC, FY, FX);
 
+    cout << U.m_data[0] <<endl;
+    cout << dV.m_data[0] <<endl;
+    cout << FT.m_data[0] <<endl;
+    cout << FC.m_data[0] <<endl;
+    cout << FY.m_data[0] <<endl;
+    cout << FX.m_data[0] <<endl;
+    cout << K.m_data[0] <<endl;
+
     auto Cudnn = NV::Conv2dBackwardFilter(dV, U, K, pad);
     auto CP4   = CP::Conv2dBackwardFilter(dV, U, FT, FC, FY, FX, pad);
 
@@ -83,15 +91,8 @@ TEST_CASE("Single Convolution Kernel test") {
     REQUIRE(CP4.shape[2] == f);
     REQUIRE(CP4.shape[3] == f);
 
-    CHECK(Cudnn.m_data[0] == doctest::Approx(CP4.m_data[0]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[1] == doctest::Approx(CP4.m_data[1]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[2] == doctest::Approx(CP4.m_data[2]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[3] == doctest::Approx(CP4.m_data[3]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[4] == doctest::Approx(CP4.m_data[4]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[5] == doctest::Approx(CP4.m_data[5]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[6] == doctest::Approx(CP4.m_data[6]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[7] == doctest::Approx(CP4.m_data[7]).epsilon(1e-5));
-    CHECK(Cudnn.m_data[8] == doctest::Approx(CP4.m_data[8]).epsilon(1e-5));
+    for (int i = 0; i < CP4.size(); ++i)
+      REQUIRE(Cudnn.m_data[i] == doctest::Approx(CP4.m_data[i]).epsilon(1e-5));
 
     REQUIRE(AllClose(Cudnn, CP4, 1e-5));
   }

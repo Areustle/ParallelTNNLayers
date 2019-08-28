@@ -99,75 +99,57 @@ Tensor CP::Conv2dBackwardFilter(Tensor const dLdO,
   s.Y    = FY.shape[0];
   s.X    = FX.shape[0];
 
-  /* Tensor dFT{ s.T, s.Rank }; */
-  /* Tensor dFC{ s.C, s.Rank }; */
-  /* Tensor dFY{ s.Y, s.Rank }; */
-  /* Tensor dFX{ s.X, s.Rank }; */
-  Tensor dFF{ s.T, s.C, s.Y, s.X };
-
-  const unsigned sH = s.H + 2 * s.pad;
-  const unsigned sW = s.W + 2 * s.pad;
+  Tensor dFT{ s.T, s.Rank };
+  Tensor dFC{ s.C, s.Rank };
+  Tensor dFY{ s.Y, s.Rank };
+  Tensor dFX{ s.X, s.Rank };
+  /* Tensor dFF{ s.T, s.C, s.Y, s.X }; */
 
 
-  Tensor SHIn0{ s.N, s.C, sH, sW };
-  Tensor SHdLdO0{ s.N, s.T, sH, sW };
+  /* cp4_conv2d_backward_filter_full_gpu( */
+  /*     s, dFF.m_data, In.m_data, dLdO.m_data); */
 
-  cp4_conv2d_backward_filter_full_gpu(
-      s, dFF.m_data, In.m_data, SHIn0.m_data, dLdO.m_data, SHdLdO0.m_data);
+  /* return dFF; */
 
-  return dFF;
+  cp4_conv2d_backward_filter_t_gpu(s,
+                                   dFT.m_data,
+                                   In.m_data,
+                                   dLdO.m_data,
+                                   FC.m_data,
+                                   FY.m_data,
+                                   FX.m_data);
 
-  /* cp4_conv2d_backward_filter_t_gpu(s, */
-  /*                                  dFT.m_data, */
-  /*                                  In.m_data, */
-  /*                                  SHIn0.m_data, */
-  /*                                  dLdO.m_data, */
-  /*                                  SHdLdO0.m_data, */
-  /*                                  FC.m_data, */
-  /*                                  FY.m_data, */
-  /*                                  FX.m_data); */
+  /* cout << dFT.m_data[0] << endl; */
+  /* cout << dFC.m_data[0] << endl; */
+  /* cout << dFY.m_data[0] << endl; */
+  /* cout << dFX.m_data[0] << endl; */
 
-  /* Tensor SHIn1{ s.N, s.C, sH, sW }; */
-  /* Tensor SHdLdO1{ s.N, s.T, sH, sW }; */
+  cp4_conv2d_backward_filter_c_gpu(s,
+                                   dFC.m_data,
+                                   In.m_data,
+                                   dLdO.m_data,
+                                   FT.m_data,
+                                   FY.m_data,
+                                   FX.m_data);
 
-  /* cp4_conv2d_backward_filter_c_gpu(s, */
-  /*                                  dFC.m_data, */
-  /*                                  In.m_data, */
-  /*                                  SHIn1.m_data, */
-  /*                                  dLdO.m_data, */
-  /*                                  SHdLdO1.m_data, */
-  /*                                  FT.m_data, */
-  /*                                  FY.m_data, */
-  /*                                  FX.m_data); */
+  cp4_conv2d_backward_filter_y_gpu(s,
+                                   dFY.m_data,
+                                   In.m_data,
+                                   dLdO.m_data,
+                                   FT.m_data,
+                                   FC.m_data,
+                                   FX.m_data);
 
-  /* Tensor SHIn2{ s.N, s.C, sH, sW }; */
-  /* Tensor SHdLdO2{ s.N, s.T, sH, sW }; */
 
-  /* cp4_conv2d_backward_filter_y_gpu(s, */
-  /*                                  dFY.m_data, */
-  /*                                  In.m_data, */
-  /*                                  SHIn2.m_data, */
-  /*                                  dLdO.m_data, */
-  /*                                  SHdLdO2.m_data, */
-  /*                                  FT.m_data, */
-  /*                                  FC.m_data, */
-  /*                                  FX.m_data); */
+  cp4_conv2d_backward_filter_x_gpu(s,
+                                   dFX.m_data,
+                                   In.m_data,
+                                   dLdO.m_data,
+                                   FT.m_data,
+                                   FC.m_data,
+                                   FY.m_data);
 
-  /* Tensor SHIn3{ s.N, s.C, sH, sW }; */
-  /* Tensor SHdLdO3{ s.N, s.T, sH, sW }; */
-
-  /* cp4_conv2d_backward_filter_x_gpu(s, */
-  /*                                  dFX.m_data, */
-  /*                                  In.m_data, */
-  /*                                  SHIn3.m_data, */
-  /*                                  dLdO.m_data, */
-  /*                                  SHdLdO3.m_data, */
-  /*                                  FT.m_data, */
-  /*                                  FC.m_data, */
-  /*                                  FY.m_data); */
-
-  /* return cp4recom(dFT, dFC, dFY, dFX); */
-  /* return dFT; */
+  return cp4recom(dFT, dFC, dFY, dFX);
 }
 
 /*******************************************************************************

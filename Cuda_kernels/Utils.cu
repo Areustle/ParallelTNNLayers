@@ -146,7 +146,7 @@ __global__ void arrayRelativeDelta(int*        Exceeds,
                                    const float* __restrict__ A,
                                    const float* __restrict__ B) {
   unsigned tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (tid > size) return;
+  if (tid >= size) return;
 
   float a = A[tid];
   float b = B[tid];
@@ -163,9 +163,10 @@ bool AllClose(Tensor A, Tensor B, float tolerance) {
   ErrChk(cudaMalloc(&Exceeds, sizeof(int)));
   ErrChk(cudaMemset(Exceeds, 0, sizeof(int)));
 
+  unsigned BlockSize = A.size() < 512 ? A.size() : 512;
   unsigned GridSize = (A.size() / 512) + ((A.size() % 512) != 0);
 
-  arrayRelativeDelta<<<GridSize, 512>>>(
+  arrayRelativeDelta<<<GridSize, BlockSize>>>(
       Exceeds, tolerance, A.size(), A.m_data, B.m_data);
 
   ErrChk(cudaPeekAtLastError());

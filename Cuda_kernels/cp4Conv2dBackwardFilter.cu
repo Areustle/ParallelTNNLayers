@@ -1,4 +1,5 @@
 #include "cp4Conv2dBackwardData.cuh"
+#include "Tensor.cuh"
 #include <iostream>
 #include <stdlib.h>
 
@@ -20,30 +21,20 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 float cp4_conv2d_backward_filter_full_gpu(tensor_shape s,
-                                       float* FF,
-                                       const float* In,
-                                       float* SHIn,
-                                       const float* dLdO,
-                                       float* SHOut,
-                                       unsigned     PROFCOUNT) {
+                                           float* FF,
+                                           const float* In,
+                                           const float* dLdO,
+                                           unsigned     PROFCOUNT) {
   const unsigned sH = s.H+2*s.pad;
   const unsigned sW = s.W+2*s.pad;
 
+  Tensor SharedInputTensor{ s.N, s.C, sH, sW };
+  float* SHIn = SharedInputTensor.m_data;
+
   for (int n = 0; n < s.N; ++n)
-  for (int h = 0; h < s.H; ++h)
-  for (int w = 0; w < s.W; ++w){
-
-    for (int t = 0; t < s.T; ++t){
-      SHOut[n*s.T*sH*sW + t*sH*sW + h*sW + w]
-            = (h >= s.pad
-                && h < s.H+s.pad
-                && w >= s.pad
-                && w < s.W+s.pad)
-            ? dLdO[n*s.T*s.H*s.W + t*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
-            : 0.0f;
-    }
-
-    for (int c = 0; c < s.C; ++c){
+  for (int c = 0; c < s.C; ++c)
+  for (int h = 0; h < sH; ++h)
+  for (int w = 0; w < sW; ++w) {
       SHIn[n*s.C*sH*sW + c*sH*sW + h*sW + w]
         = (h >= s.pad
             && h < s.H+s.pad
@@ -51,18 +42,16 @@ float cp4_conv2d_backward_filter_full_gpu(tensor_shape s,
             && w < s.W+s.pad)
         ? In[n*s.C*s.H*s.W + c*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
         : 0.0f;
-
-    }
   }
 
-  for (int t = 0; t < s.T; ++t)
-  for (int c = 0; c < s.C; ++c)
   for (int y = 0; y < s.Y; ++y)
   for (int x = 0; x < s.X; ++x)
   for (int n = 0; n < s.N; ++n)
+  for (int t = 0; t < s.T; ++t)
+  for (int c = 0; c < s.C; ++c)
   for (int h = 0; h < s.H; ++h)
   for (int w = 0; w < s.W; ++w)
-    FF[t*s.C*s.Y*s.X + c*s.Y*s.X + y*s.X +x] 
+    FF[t*s.C*s.X*s.Y + c*s.X*s.Y + y*s.X +x]
       += dLdO[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
        * SHIn[n*s.C*sH*sW + c*sH*sW + (h+y)*sW + (w+x)];
 
@@ -73,11 +62,9 @@ float cp4_conv2d_backward_filter_full_gpu(tensor_shape s,
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 float cp4_conv2d_backward_filter_t_gpu(tensor_shape s,
-                                       float* FT,
+                                       float* dFT,
                                        const float* In,
-                                       float* SHIn,
                                        const float* dLdO,
-                                       float* SHOut,
                                        const float* FC,
                                        const float* FY,
                                        const float* FX,
@@ -85,21 +72,13 @@ float cp4_conv2d_backward_filter_t_gpu(tensor_shape s,
   const unsigned sH = s.H+2*s.pad;
   const unsigned sW = s.W+2*s.pad;
 
+  Tensor SharedInputTensor{ s.N, s.C, sH, sW };
+  float* SHIn = SharedInputTensor.m_data;
+
   for (int n = 0; n < s.N; ++n)
-  for (int h = 0; h < s.H; ++h)
-  for (int w = 0; w < s.W; ++w){
-
-    for (int t = 0; t < s.T; ++t){
-      SHOut[n*s.T*sH*sW + t*sH*sW + h*sW + w]
-            = (h >= s.pad
-                && h < s.H+s.pad
-                && w >= s.pad
-                && w < s.W+s.pad)
-            ? dLdO[n*s.T*s.H*s.W + t*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
-            : 0.0f;
-    }
-
-    for (int c = 0; c < s.C; ++c){
+  for (int c = 0; c < s.C; ++c)
+  for (int h = 0; h < sH; ++h)
+  for (int w = 0; w < sW; ++w) {
       SHIn[n*s.C*sH*sW + c*sH*sW + h*sW + w]
         = (h >= s.pad
             && h < s.H+s.pad
@@ -107,8 +86,6 @@ float cp4_conv2d_backward_filter_t_gpu(tensor_shape s,
             && w < s.W+s.pad)
         ? In[n*s.C*s.H*s.W + c*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
         : 0.0f;
-
-    }
   }
 
   for (int t = 0; t < s.T; ++t)
@@ -119,11 +96,12 @@ float cp4_conv2d_backward_filter_t_gpu(tensor_shape s,
   for (int c = 0; c < s.C; ++c)
   for (int y = 0; y < s.Y; ++y)
   for (int x = 0; x < s.X; ++x)
-    FT[t*s.Rank + r] += SHOut[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
-      *SHIn[n*s.C*s.H*s.W + c*s.H*s.W + (h+y)*s.W + (w+x)]
-      *FC[c*s.Rank + r]
-      *FY[y*s.Rank + r]
-      *FX[x*s.Rank + r];
+    dFT[t*s.Rank + r] 
+      += dLdO[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
+       * SHIn[n*s.C*sH*sW + c*sH*sW + (h+y)*sW + (w+x)]
+       * FC[c*s.Rank + r]
+       * FY[y*s.Rank + r]
+       * FX[x*s.Rank + r];
 
   return 0;
 }
@@ -132,11 +110,9 @@ float cp4_conv2d_backward_filter_t_gpu(tensor_shape s,
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 float cp4_conv2d_backward_filter_c_gpu(tensor_shape s,
-                                       float* FC,
+                                       float* dFC,
                                        const float* In,
-                                       float* SHIn,
                                        const float* dLdO,
-                                       float* SHOut,
                                        const float* FT,
                                        const float* FY,
                                        const float* FX,
@@ -145,21 +121,14 @@ float cp4_conv2d_backward_filter_c_gpu(tensor_shape s,
   const unsigned sH = s.H+2*s.pad;
   const unsigned sW = s.W+2*s.pad;
 
+  Tensor SharedInputTensor{ s.N, s.C, sH, sW };
+  float* SHIn = SharedInputTensor.m_data;
+
+
   for (int n = 0; n < s.N; ++n)
-  for (int h = 0; h < s.H; ++h)
-  for (int w = 0; w < s.W; ++w){
-
-    for (int t = 0; t < s.T; ++t){
-      SHOut[n*s.T*sH*sW + t*sH*sW + h*sW + w]
-            = (h >= s.pad
-                && h < s.H+s.pad
-                && w >= s.pad
-                && w < s.W+s.pad)
-            ? dLdO[n*s.T*s.H*s.W + t*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
-            : 0.0f;
-    }
-
-    for (int c = 0; c < s.C; ++c){
+  for (int c = 0; c < s.C; ++c)
+  for (int h = 0; h < sH; ++h)
+  for (int w = 0; w < sW; ++w) {
       SHIn[n*s.C*sH*sW + c*sH*sW + h*sW + w]
         = (h >= s.pad
             && h < s.H+s.pad
@@ -167,9 +136,8 @@ float cp4_conv2d_backward_filter_c_gpu(tensor_shape s,
             && w < s.W+s.pad)
         ? In[n*s.C*s.H*s.W + c*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
         : 0.0f;
-
-    }
   }
+
 
   for (int c = 0; c < s.C; ++c)
   for (int r = 0; r < s.Rank; ++r)
@@ -179,8 +147,9 @@ float cp4_conv2d_backward_filter_c_gpu(tensor_shape s,
   for (int w = 0; w < s.W; ++w)
   for (int y = 0; y < s.Y; ++y)
   for (int x = 0; x < s.X; ++x)
-    FC[c*s.Rank + r] += SHOut[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
-      *SHIn[n*s.C*s.H*s.W + c*s.H*s.W + (h+y)*s.W + (w+x)]
+    dFC[c*s.Rank + r] 
+      += dLdO[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
+       * SHIn[n*s.C*sH*sW + c*sH*sW + (h+y)*sW + (w+x)]
       *FT[t*s.Rank + r]
       *FY[y*s.Rank + r]
       *FX[x*s.Rank + r];
@@ -192,11 +161,9 @@ float cp4_conv2d_backward_filter_c_gpu(tensor_shape s,
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 float cp4_conv2d_backward_filter_y_gpu(tensor_shape s,
-                                       float* FY,
+                                       float* dFY,
                                        const float* In,
-                                       float* SHIn,
                                        const float* dLdO,
-                                       float* SHOut,
                                        const float* FT,
                                        const float* FC,
                                        const float* FX,
@@ -205,21 +172,13 @@ float cp4_conv2d_backward_filter_y_gpu(tensor_shape s,
   const unsigned sH = s.H+2*s.pad;
   const unsigned sW = s.W+2*s.pad;
 
+  Tensor SharedInputTensor{ s.N, s.C, sH, sW };
+  float* SHIn = SharedInputTensor.m_data;
+
   for (int n = 0; n < s.N; ++n)
-  for (int h = 0; h < s.H; ++h)
-  for (int w = 0; w < s.W; ++w){
-
-    for (int t = 0; t < s.T; ++t){
-      SHOut[n*s.T*sH*sW + t*sH*sW + h*sW + w]
-            = (h >= s.pad
-                && h < s.H+s.pad
-                && w >= s.pad
-                && w < s.W+s.pad)
-            ? dLdO[n*s.T*s.H*s.W + t*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
-            : 0.0f;
-    }
-
-    for (int c = 0; c < s.C; ++c){
+  for (int c = 0; c < s.C; ++c)
+  for (int h = 0; h < sH; ++h)
+  for (int w = 0; w < sW; ++w) {
       SHIn[n*s.C*sH*sW + c*sH*sW + h*sW + w]
         = (h >= s.pad
             && h < s.H+s.pad
@@ -227,9 +186,8 @@ float cp4_conv2d_backward_filter_y_gpu(tensor_shape s,
             && w < s.W+s.pad)
         ? In[n*s.C*s.H*s.W + c*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
         : 0.0f;
-
-    }
   }
+
 
   for (int y = 0; y < s.Y; ++y)
   for (int r = 0; r < s.Rank; ++r)
@@ -239,8 +197,9 @@ float cp4_conv2d_backward_filter_y_gpu(tensor_shape s,
   for (int c = 0; c < s.C; ++c)
   for (int t = 0; t < s.T; ++t)
   for (int x = 0; x < s.X; ++x)
-    FY[y*s.Rank + r] += SHOut[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
-      *SHIn[n*s.C*s.H*s.W + c*s.H*s.W + (h+y)*s.W + (w+x)]
+    dFY[y*s.Rank + r] 
+      += dLdO[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
+       * SHIn[n*s.C*sH*sW + c*sH*sW + (h+y)*sW + (w+x)]
       *FT[t*s.Rank + r]
       *FC[c*s.Rank + r]
       *FX[x*s.Rank + r];
@@ -252,11 +211,9 @@ float cp4_conv2d_backward_filter_y_gpu(tensor_shape s,
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 float cp4_conv2d_backward_filter_x_gpu(tensor_shape s,
-                                       float* FX,
+                                       float* dFX,
                                        const float* In,
-                                       float* SHIn,
                                        const float* dLdO,
-                                       float* SHOut,
                                        const float* FT,
                                        const float* FC,
                                        const float* FY,
@@ -265,21 +222,13 @@ float cp4_conv2d_backward_filter_x_gpu(tensor_shape s,
   const unsigned sH = s.H+2*s.pad;
   const unsigned sW = s.W+2*s.pad;
 
+  Tensor SharedInputTensor{ s.N, s.C, sH, sW };
+  float* SHIn = SharedInputTensor.m_data;
+
   for (int n = 0; n < s.N; ++n)
-  for (int h = 0; h < s.H; ++h)
-  for (int w = 0; w < s.W; ++w){
-
-    for (int t = 0; t < s.T; ++t){
-      SHOut[n*s.T*sH*sW + t*sH*sW + h*sW + w]
-            = (h >= s.pad
-                && h < s.H+s.pad
-                && w >= s.pad
-                && w < s.W+s.pad)
-            ? dLdO[n*s.T*s.H*s.W + t*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
-            : 0.0f;
-    }
-
-    for (int c = 0; c < s.C; ++c){
+  for (int c = 0; c < s.C; ++c)
+  for (int h = 0; h < sH; ++h)
+  for (int w = 0; w < sW; ++w) {
       SHIn[n*s.C*sH*sW + c*sH*sW + h*sW + w]
         = (h >= s.pad
             && h < s.H+s.pad
@@ -287,8 +236,6 @@ float cp4_conv2d_backward_filter_x_gpu(tensor_shape s,
             && w < s.W+s.pad)
         ? In[n*s.C*s.H*s.W + c*s.H*s.W + (h-s.pad)*s.W + (w-s.pad)]
         : 0.0f;
-
-    }
   }
 
   for (int x = 0; x < s.X; ++x)
@@ -299,8 +246,9 @@ float cp4_conv2d_backward_filter_x_gpu(tensor_shape s,
   for (int t = 0; t < s.T; ++t)
   for (int c = 0; c < s.C; ++c)
   for (int y = 0; y < s.Y; ++y)
-    FX[x*s.Rank + r] += SHOut[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
-      *SHIn[n*s.C*s.H*s.W + c*s.H*s.W + (h+y)*s.W + (w+x)]
+    dFX[x*s.Rank + r] 
+      += dLdO[n*s.T*s.H*s.W + t*s.H*s.W + h*s.W +w]
+       * SHIn[n*s.C*sH*sW + c*sH*sW + (h+y)*sW + (w+x)]
       *FT[t*s.Rank + r]
       *FC[c*s.Rank + r]
       *FY[y*s.Rank + r];
