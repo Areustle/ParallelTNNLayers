@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
   }
 
   ostream results(output_buffer);
-  results << "N,C,H,W,pad,T,Y,X,us" << endl;
+  results << "N,C,H,W,pad,fK,fH,fW,us" << endl;
 
 
   if (!tensors.is_open()) {

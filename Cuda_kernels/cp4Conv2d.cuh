@@ -12,20 +12,20 @@ namespace CP {
                        Tensor const,
                        unsigned pad = 1);
 
-  Tensor Conv2dBackwardData(Tensor const,
-                            Tensor const,
-                            Tensor const,
-                            Tensor const,
-                            Tensor const,
-                            unsigned pad = 1);
+  /* Tensor Conv2dBackwardData(Tensor const, */
+  /*                           Tensor const, */
+  /*                           Tensor const, */
+  /*                           Tensor const, */
+  /*                           Tensor const, */
+  /*                           unsigned pad = 1); */
 
-  Tensor Conv2dBackwardFilter(Tensor const,
-                              Tensor const,
-                              Tensor const,
-                              Tensor const,
-                              Tensor const,
-                              Tensor const,
-                              unsigned pad = 1);
+  /* Tensor Conv2dBackwardFilter(Tensor const, */
+  /*                             Tensor const, */
+  /*                             Tensor const, */
+  /*                             Tensor const, */
+  /*                             Tensor const, */
+  /*                             Tensor const, */
+  /*                             unsigned pad = 1); */
 
   float run_convolution(tensor_shape, unsigned PROFCOUNT = 1);
 

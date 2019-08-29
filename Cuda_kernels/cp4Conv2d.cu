@@ -45,112 +45,112 @@ Tensor CP::Conv2dForward(Tensor const Input,
 /*******************************************************************************
  * Unified memory Tensorized call of Convolution Backward Data in GPU
  ******************************************************************************/
-Tensor CP::Conv2dBackwardData(Tensor const Upstream,
-                              Tensor const FT,
-                              Tensor const FC,
-                              Tensor const FY,
-                              Tensor const FX,
-                              unsigned     pad) {
+/* Tensor CP::Conv2dBackwardData(Tensor const Upstream, */
+/*                               Tensor const FT, */
+/*                               Tensor const FC, */
+/*                               Tensor const FY, */
+/*                               Tensor const FX, */
+/*                               unsigned     pad) { */
 
-  tensor_shape params;
-  params.N    = Upstream.shape[0];
-  params.T    = Upstream.shape[1];
-  params.H    = Upstream.shape[2];
-  params.W    = Upstream.shape[3];
-  params.pad  = pad;
-  params.Rank = FT.shape[1];
-  params.C    = FC.shape[0];
-  params.Y    = FY.shape[0];
-  params.X    = FX.shape[0];
+/*   tensor_shape params; */
+/*   params.N    = Upstream.shape[0]; */
+/*   params.T    = Upstream.shape[1]; */
+/*   params.H    = Upstream.shape[2]; */
+/*   params.W    = Upstream.shape[3]; */
+/*   params.pad  = pad; */
+/*   params.Rank = FT.shape[1]; */
+/*   params.C    = FC.shape[0]; */
+/*   params.Y    = FY.shape[0]; */
+/*   params.X    = FX.shape[0]; */
 
-  Tensor Out{ params.N, params.C, params.H, params.W };
+/*   Tensor Out{ params.N, params.C, params.H, params.W }; */
 
-  cp4_conv2d_backward_data_gpu(params,
-                               Upstream.m_data,
-                               FT.m_data,
-                               FC.m_data,
-                               FY.m_data,
-                               FX.m_data,
-                               Out.m_data);
+/*   cp4_conv2d_backward_data_gpu(params, */
+/*                                Upstream.m_data, */
+/*                                FT.m_data, */
+/*                                FC.m_data, */
+/*                                FY.m_data, */
+/*                                FX.m_data, */
+/*                                Out.m_data); */
 
-  return Out;
-}
+/*   return Out; */
+/* } */
 
 
 /*******************************************************************************
  * Unified memory Tensorized call of Convolution Backward Filter in GPU
  ******************************************************************************/
-Tensor CP::Conv2dBackwardFilter(Tensor const dLdO,
-                                Tensor const In,
-                                Tensor const FT,
-                                Tensor const FC,
-                                Tensor const FY,
-                                Tensor const FX,
-                                unsigned     pad) {
+/* Tensor CP::Conv2dBackwardFilter(Tensor const dLdO, */
+/*                                 Tensor const In, */
+/*                                 Tensor const FT, */
+/*                                 Tensor const FC, */
+/*                                 Tensor const FY, */
+/*                                 Tensor const FX, */
+/*                                 unsigned     pad) { */
 
-  tensor_shape s;
-  s.N    = dLdO.shape[0];
-  s.T    = dLdO.shape[1];
-  s.H    = dLdO.shape[2];
-  s.W    = dLdO.shape[3];
-  s.pad  = pad;
-  s.Rank = FT.shape[1];
-  s.C    = FC.shape[0];
-  s.Y    = FY.shape[0];
-  s.X    = FX.shape[0];
+/*   tensor_shape s; */
+/*   s.N    = dLdO.shape[0]; */
+/*   s.T    = dLdO.shape[1]; */
+/*   s.H    = dLdO.shape[2]; */
+/*   s.W    = dLdO.shape[3]; */
+/*   s.pad  = pad; */
+/*   s.Rank = FT.shape[1]; */
+/*   s.C    = FC.shape[0]; */
+/*   s.Y    = FY.shape[0]; */
+/*   s.X    = FX.shape[0]; */
 
-  Tensor dFT{ s.T, s.Rank };
-  Tensor dFC{ s.C, s.Rank };
-  Tensor dFY{ s.Y, s.Rank };
-  Tensor dFX{ s.X, s.Rank };
-  /* Tensor dFF{ s.T, s.C, s.Y, s.X }; */
-
-
-  /* cp4_conv2d_backward_filter_full_gpu( */
-  /*     s, dFF.m_data, In.m_data, dLdO.m_data); */
-
-  /* return dFF; */
-
-  cp4_conv2d_backward_filter_t_gpu(s,
-                                   dFT.m_data,
-                                   In.m_data,
-                                   dLdO.m_data,
-                                   FC.m_data,
-                                   FY.m_data,
-                                   FX.m_data);
-
-  /* cout << dFT.m_data[0] << endl; */
-  /* cout << dFC.m_data[0] << endl; */
-  /* cout << dFY.m_data[0] << endl; */
-  /* cout << dFX.m_data[0] << endl; */
-
-  cp4_conv2d_backward_filter_c_gpu(s,
-                                   dFC.m_data,
-                                   In.m_data,
-                                   dLdO.m_data,
-                                   FT.m_data,
-                                   FY.m_data,
-                                   FX.m_data);
-
-  cp4_conv2d_backward_filter_y_gpu(s,
-                                   dFY.m_data,
-                                   In.m_data,
-                                   dLdO.m_data,
-                                   FT.m_data,
-                                   FC.m_data,
-                                   FX.m_data);
+/*   Tensor dFT{ s.T, s.Rank }; */
+/*   Tensor dFC{ s.C, s.Rank }; */
+/*   Tensor dFY{ s.Y, s.Rank }; */
+/*   Tensor dFX{ s.X, s.Rank }; */
+/*   /1* Tensor dFF{ s.T, s.C, s.Y, s.X }; *1/ */
 
 
-  cp4_conv2d_backward_filter_x_gpu(s,
-                                   dFX.m_data,
-                                   In.m_data,
-                                   dLdO.m_data,
-                                   FT.m_data,
-                                   FC.m_data,
-                                   FY.m_data);
+/*   /1* cp4_conv2d_backward_filter_full_gpu( *1/ */
+/*   /1*     s, dFF.m_data, In.m_data, dLdO.m_data); *1/ */
 
-  return cp4recom(dFT, dFC, dFY, dFX);
-}
+/*   /1* return dFF; *1/ */
+
+/*   cp4_conv2d_backward_filter_t_gpu(s, */
+/*                                    dFT.m_data, */
+/*                                    In.m_data, */
+/*                                    dLdO.m_data, */
+/*                                    FC.m_data, */
+/*                                    FY.m_data, */
+/*                                    FX.m_data); */
+
+/*   /1* cout << dFT.m_data[0] << endl; *1/ */
+/*   /1* cout << dFC.m_data[0] << endl; *1/ */
+/*   /1* cout << dFY.m_data[0] << endl; *1/ */
+/*   /1* cout << dFX.m_data[0] << endl; *1/ */
+
+/*   cp4_conv2d_backward_filter_c_gpu(s, */
+/*                                    dFC.m_data, */
+/*                                    In.m_data, */
+/*                                    dLdO.m_data, */
+/*                                    FT.m_data, */
+/*                                    FY.m_data, */
+/*                                    FX.m_data); */
+
+/*   cp4_conv2d_backward_filter_y_gpu(s, */
+/*                                    dFY.m_data, */
+/*                                    In.m_data, */
+/*                                    dLdO.m_data, */
+/*                                    FT.m_data, */
+/*                                    FC.m_data, */
+/*                                    FX.m_data); */
+
+
+/*   cp4_conv2d_backward_filter_x_gpu(s, */
+/*                                    dFX.m_data, */
+/*                                    In.m_data, */
+/*                                    dLdO.m_data, */
+/*                                    FT.m_data, */
+/*                                    FC.m_data, */
+/*                                    FY.m_data); */
+
+/*   return cp4recom(dFT, dFC, dFY, dFX); */
+/* } */
 
 /*******************************************************************************
  * Run_convolution operation with a profile count loop
