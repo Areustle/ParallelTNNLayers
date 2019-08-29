@@ -92,80 +92,76 @@ TEST_CASE("Single Convolution Kernel test") {
   /*   REQUIRE(CP4.shape[3] == f); */
 
   /*   for (int i = 0; i < CP4.size(); ++i) */
-  /*     REQUIRE(Cudnn.m_data[i] == doctest::Approx(CP4.m_data[i]).epsilon(1e-5)); */
+  /*     REQUIRE(Cudnn.m_data[i] ==
+   * doctest::Approx(CP4.m_data[i]).epsilon(1e-5)); */
 
   /*   REQUIRE(AllClose(Cudnn, CP4, 1e-5)); */
   /* } */
 }
 
 
-/* TEST_CASE("Extended Convolution Test") { */
+TEST_CASE("Extended Convolution Test") {
 
-/*   std::vector<std::string> tensor_list{ */
-/*     "Cuda_kernels/bench/tensors_alexnet.txt", */
-/*     "Cuda_kernels/bench/tensors_batch_size.txt", */
-/*     "Cuda_kernels/bench/tensors_channel_depth.txt", */
-/*     "Cuda_kernels/bench/tensors_image_size.txt", */
-/*     "Cuda_kernels/bench/tensors_filter_count.txt", */
-/*     "Cuda_kernels/bench/tensors_filter_size.txt", */
-/*     "Cuda_kernels/bench/tensors_all_scales.txt", */
-/*   }; */
+  std::vector<std::string> tensor_list{
+    "Cuda_kernels/bench/tensors_alexnet.txt",
+    "Cuda_kernels/bench/tensors_batch_size.txt",
+    "Cuda_kernels/bench/tensors_channel_depth.txt",
+    "Cuda_kernels/bench/tensors_image_size.txt",
+    "Cuda_kernels/bench/tensors_filter_count.txt",
+    "Cuda_kernels/bench/tensors_filter_size.txt",
+    "Cuda_kernels/bench/tensors_all_scales.txt",
+  };
 
-/*   for (auto t : tensor_list) { */
-/*     ifstream tensors(t); */
+  for (auto t : tensor_list) {
+    ifstream tensors(t);
 
-/*     REQUIRE(tensors.is_open()); */
-/*     string line; */
-/*     while (getline(tensors, line)) { */
+    REQUIRE(tensors.is_open());
+    string line;
+    while (getline(tensors, line)) {
 
-/*       if (line[0] == '#' || line.empty()) continue; */
+      if (line[0] == '#' || line.empty()) continue;
 
-/*       stringstream line_sm(line); */
-/*       unsigned     N, H, W, C, pad, T, Y, X, fRank; */
-/*       line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X >> fRank; */
+      stringstream line_sm(line);
+      unsigned     N, H, W, C, pad, T, Y, X, fRank;
+      line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X >> fRank;
 
-/*       auto Input = random_fill({ N, C, H, W }); */
-/*       auto FT    = random_fill({ T, fRank }); */
-/*       auto FC    = random_fill({ C, fRank }); */
-/*       auto FY    = random_fill({ Y, fRank }); */
-/*       auto FX    = random_fill({ X, fRank }); */
-/*       auto FF    = cp4recom(FT, FC, FY, FX); */
+      auto Input = random_fill({ N, C, H, W });
+      auto FT    = random_fill({ T, fRank });
+      auto FC    = random_fill({ C, fRank });
+      auto FY    = random_fill({ Y, fRank });
+      auto FX    = random_fill({ X, fRank });
+      auto FF    = cp4recom(FT, FC, FY, FX);
 
-/*       SUBCASE("Forward Convolution Test") { */
+      auto Cudnn = NV::Conv2dForward(Input, FF, pad);
+      auto CP4   = CP::Conv2dForward(Input, FT, FC, FY, FX, pad);
 
-/*         auto Cudnn = NV::Conv2dForward(Input, FF, pad); */
-/*         auto CP4   = CP::Conv2dForward(Input, FT, FC, FY, FX, pad); */
+      REQUIRE(Cudnn.size() == CP4.size());
+      REQUIRE(CP4.shape[0] == N);
+      REQUIRE(CP4.shape[1] == T);
+      REQUIRE(CP4.shape[2] == H);
+      REQUIRE(CP4.shape[3] == W);
+      REQUIRE_MESSAGE(AllClose(Cudnn, CP4, 1e-5),
+                      "Incorrect result with "
+                          << line << " Parsed as " << N << ","  //
+                          << C << "," << H << "," << W << ","   //
+                          << pad << "," << T << "," << Y << "," //
+                          << X << "," << fRank);
 
-/*         REQUIRE(Cudnn.size() == CP4.size()); */
-/*         REQUIRE(CP4.shape[0] == N); */
-/*         REQUIRE(CP4.shape[1] == T); */
-/*         REQUIRE(CP4.shape[2] == H); */
-/*         REQUIRE(CP4.shape[3] == W); */
-/*         REQUIRE_MESSAGE(AllClose(Cudnn, CP4, 1e-5), */
-/*                         "Incorrect result with " */
-/*                             << line << " Parsed as " << N << ","  // */
-/*                             << C << "," << H << "," << W << ","   // */
-/*                             << pad << "," << T << "," << Y << "," // */
-/*                             << X << "," << fRank); */
-/*       } */
 
-/*       /1* SUBCASE("Forward Convolution Test") { *1/ */
+      /*   auto Cudnn = NV::Conv2dBackwardData(Input, FF, pad); */
+      /*   auto CP4   = CP::Conv2dBackwardData(Input, FC, FT, FY, FX, pad); */
 
-/*       /1*   auto Cudnn = NV::Conv2dBackwardData(Input, FF, pad); *1/ */
-/*       /1*   auto CP4   = CP::Conv2dBackwardData(Input, FC, FT, FY, FX, pad); *1/ */
-
-/*       /1*   REQUIRE(Cudnn.size() == CP4.size()); *1/ */
-/*       /1*   REQUIRE(CP4.shape[0] == N); *1/ */
-/*       /1*   REQUIRE(CP4.shape[1] == T); *1/ */
-/*       /1*   REQUIRE(CP4.shape[2] == H); *1/ */
-/*       /1*   REQUIRE(CP4.shape[3] == W); *1/ */
-/*       /1*   REQUIRE_MESSAGE(AllClose(Cudnn, CP4, 1e-5), *1/ */
-/*       /1*                   "Incorrect result with " *1/ */
-/*       /1*                       << line << " Parsed as " << N << ","  // *1/ */
-/*       /1*                       << C << "," << H << "," << W << ","   // *1/ */
-/*       /1*                       << pad << "," << T << "," << Y << "," // *1/ */
-/*       /1*                       << X << "," << fRank); *1/ */
-/*       /1* } *1/ */
-/*     } */
-/*   } */
-/* } */
+      /*   REQUIRE(Cudnn.size() == CP4.size()); */
+      /*   REQUIRE(CP4.shape[0] == N); */
+      /*   REQUIRE(CP4.shape[1] == T); */
+      /*   REQUIRE(CP4.shape[2] == H); */
+      /*   REQUIRE(CP4.shape[3] == W); */
+      /*   REQUIRE_MESSAGE(AllClose(Cudnn, CP4, 1e-5), */
+      /*                   "Incorrect result with " */
+      /*                       << line << " Parsed as " << N << ","  // */
+      /*                       << C << "," << H << "," << W << ","   // */
+      /*                       << pad << "," << T << "," << Y << "," // */
+      /*                       << X << "," << fRank); */
+    }
+  }
+}

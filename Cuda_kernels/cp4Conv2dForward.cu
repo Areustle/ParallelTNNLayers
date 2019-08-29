@@ -17,9 +17,9 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
 }
 
 /*******************************************************************************
-   Hard coded limit to size of decomposed filter of 4096 floats = 32 KB
+   Hard coded limit to size of decomposed filter of 16384 floats = 128 KB
  ******************************************************************************/
-__constant__ float const_filter[4096];
+__constant__ float const_filter[1<<14];
 
 /*******************************************************************************
  * 2 Dimensional Convolution Operation using an order-4 CP decomposition.
@@ -69,11 +69,6 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                   : (0.0f); // Pad with Zeros if outside the bounds
 
     __syncthreads();
-    // Handle block / input size mismatch. This occurs here and not earlier
-    // So that these threads can still participate in the cooperative shared
-    // Memory load.
-    if (hBlockOff + h >= H) continue;
-    if (wBlockOff + w >= W) continue;
 
     float intermediate_pix_acc[Rank];
     for (unsigned r = 0; r < Rank; ++r) intermediate_pix_acc[r] = 0.0f;
@@ -93,6 +88,9 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     __syncthreads();
   }
 
+  // Handle block / input size mismatch. This occurs here and not earlier
+  // So that these threads can still participate in the cooperative shared
+  // Memory load.
   if (hBlockOff + h >= H) return;
   if (wBlockOff + w >= W) return;
 
@@ -154,8 +152,8 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned Bh   = 4;
   unsigned Bw   = 16;
+  unsigned Bh   = 4;
   unsigned sW   = X - 1 + Bw;
   unsigned sH   = Y - 1 + Bh;
   size_t   smsz = sW * sH * sizeof(float);
