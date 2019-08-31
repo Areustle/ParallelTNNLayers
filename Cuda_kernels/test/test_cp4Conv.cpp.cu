@@ -19,7 +19,7 @@ TEST_CASE("Single Convolution Kernel test") {
   unsigned pad  = 2;
   unsigned t    = 256;
   unsigned f    = 5;
-  unsigned rank = 1;
+  unsigned rank = 8;
 
   SUBCASE("Forward Convolution Data test") {
 
@@ -38,65 +38,12 @@ TEST_CASE("Single Convolution Kernel test") {
     REQUIRE(CP4.shape[1] == t);
     REQUIRE(CP4.shape[2] == x);
     REQUIRE(CP4.shape[3] == x);
+
+    for (int i = 0; i < CP4.size(); ++i)
+      REQUIRE(Cudnn.m_data[i] == doctest::Approx(CP4.m_data[i]).epsilon(1e-5));
+
     REQUIRE(AllClose(Cudnn, CP4, 1e-5));
   }
-
-  /* SUBCASE("Backward Convolution Data test") { */
-
-  /*   auto dV = random_fill({ n, t, x, x }); */
-  /*   auto FT = random_fill({ t, rank }); */
-  /*   auto FC = random_fill({ c, rank }); */
-  /*   auto FY = random_fill({ f, rank }); */
-  /*   auto FX = random_fill({ f, rank }); */
-  /*   auto K  = cp4recom(FT, FC, FY, FX); */
-
-  /*   auto Cudnn = NV::Conv2dBackwardData(dV, K, pad); */
-  /*   auto CP4   = CP::Conv2dBackwardData(dV, FT, FC, FY, FX, pad); */
-
-  /*   REQUIRE(Cudnn.size() == n * c * x * x); */
-  /*   REQUIRE(Cudnn.size() == CP4.size()); */
-  /*   REQUIRE(CP4.shape[0] == n); */
-  /*   REQUIRE(CP4.shape[1] == c); */
-  /*   REQUIRE(CP4.shape[2] == x); */
-  /*   REQUIRE(CP4.shape[3] == x); */
-
-  /*   REQUIRE(AllClose(Cudnn, CP4, 1e-5)); */
-  /* } */
-
-  /* SUBCASE("Backward Convolution Filter test") { */
-
-  /*   auto U  = random_fill({ n, c, x, x }); */
-  /*   auto dV = random_fill({ n, t, x, x }); */
-  /*   auto FT = random_fill({ t, rank }); */
-  /*   auto FC = random_fill({ c, rank }); */
-  /*   auto FY = random_fill({ f, rank }); */
-  /*   auto FX = random_fill({ f, rank }); */
-  /*   auto K  = cp4recom(FT, FC, FY, FX); */
-
-  /*   cout << U.m_data[0] <<endl; */
-  /*   cout << dV.m_data[0] <<endl; */
-  /*   cout << FT.m_data[0] <<endl; */
-  /*   cout << FC.m_data[0] <<endl; */
-  /*   cout << FY.m_data[0] <<endl; */
-  /*   cout << FX.m_data[0] <<endl; */
-  /*   cout << K.m_data[0] <<endl; */
-
-  /*   auto Cudnn = NV::Conv2dBackwardFilter(dV, U, K, pad); */
-  /*   auto CP4   = CP::Conv2dBackwardFilter(dV, U, FT, FC, FY, FX, pad); */
-
-  /*   REQUIRE(Cudnn.size() == t * c * f * f); */
-  /*   REQUIRE(Cudnn.size() == CP4.size()); */
-  /*   REQUIRE(CP4.shape[0] == t); */
-  /*   REQUIRE(CP4.shape[1] == c); */
-  /*   REQUIRE(CP4.shape[2] == f); */
-  /*   REQUIRE(CP4.shape[3] == f); */
-
-  /*   for (int i = 0; i < CP4.size(); ++i) */
-  /*     REQUIRE(Cudnn.m_data[i] ==
-   * doctest::Approx(CP4.m_data[i]).epsilon(1e-5)); */
-
-  /*   REQUIRE(AllClose(Cudnn, CP4, 1e-5)); */
-  /* } */
 }
 
 
@@ -148,20 +95,6 @@ TEST_CASE("Extended Convolution Test") {
                           << X << "," << fRank);
 
 
-      /*   auto Cudnn = NV::Conv2dBackwardData(Input, FF, pad); */
-      /*   auto CP4   = CP::Conv2dBackwardData(Input, FC, FT, FY, FX, pad); */
-
-      /*   REQUIRE(Cudnn.size() == CP4.size()); */
-      /*   REQUIRE(CP4.shape[0] == N); */
-      /*   REQUIRE(CP4.shape[1] == T); */
-      /*   REQUIRE(CP4.shape[2] == H); */
-      /*   REQUIRE(CP4.shape[3] == W); */
-      /*   REQUIRE_MESSAGE(AllClose(Cudnn, CP4, 1e-5), */
-      /*                   "Incorrect result with " */
-      /*                       << line << " Parsed as " << N << ","  // */
-      /*                       << C << "," << H << "," << W << ","   // */
-      /*                       << pad << "," << T << "," << Y << "," // */
-      /*                       << X << "," << fRank); */
     }
   }
 }

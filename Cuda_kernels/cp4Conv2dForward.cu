@@ -5,15 +5,14 @@
 using namespace std;
 
 // Simple cuda error checking macro
-#define ErrChk(ans) \
+#define ErrChk(ans)                                                            \
   { CudaAssert((ans), __FILE__, __LINE__); }
 inline void
 CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
   if (code != cudaSuccess) {
     fprintf(
         stderr, "CudaAssert: %s %s %d\n", cudaGetErrorString(code), file, line);
-    if (abort)
-      exit(code);
+    if (abort) exit(code);
   }
 }
 
@@ -22,115 +21,111 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
  ******************************************************************************/
 __constant__ float const_filter[1 << 14];
 
+
 /*******************************************************************************
  * 2 Dimensional Convolution Operation using an order-4 CP decomposition.
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor Rank Decomposition.
  *******************************************************************************/
-__global__ void conv2d_cp4_kernel(float* __restrict__ Out,
+template <unsigned FilterDim>
+__global__ void    conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
-                                  const unsigned C,
-                                  const unsigned H,
-                                  const unsigned W,
                                   const unsigned pad,
                                   const unsigned offT,
                                   const unsigned offC,
                                   const unsigned offY,
                                   const unsigned offX,
                                   const unsigned T,
+                                  const unsigned C,
                                   const unsigned Y,
                                   const unsigned X,
-                                  const unsigned Rank,
-                                  const unsigned Bw,
-                                  const unsigned Bh,
-                                  const unsigned sW,
-                                  const unsigned sH) {
+                                  const unsigned Rank) {
 
   extern __shared__ float shared_mem[];
 
-  const unsigned h         = threadIdx.z / Bw;
-  const unsigned w         = threadIdx.z % Bw;
-  const unsigned n         = blockIdx.z;
-  const unsigned wBlockOff = blockIdx.x * Bw;
-  const unsigned hBlockOff = blockIdx.y * Bh;
+  const float* FT = const_filter + offT;
+  const float* FC = const_filter + offC;
+  const float* FY = const_filter + offY;
+  const float* FX = const_filter + offX;
 
-  unsigned r = threadIdx.y;
+  const unsigned w     = blockIdx.x;
+  const unsigned h     = blockIdx.y;
+  const unsigned n     = blockIdx.z;
+  const unsigned W     = gridDim.x;
+  const unsigned H     = gridDim.y;
+  const unsigned TileC = blockDim.x / Rank;
+  const unsigned r     = threadIdx.x / TileC;
+  const unsigned tc    = threadIdx.x % TileC;
+
+  if (r >= Rank) return;
+  if (tc >= TileC) return;
 
   float local_acc = 0.0f;
 
-  // Parallel multiply by channel and rank.
-  for (unsigned c = threadIdx.x; c < C; c += blockDim.x) {
-    // Shift the Global pointers to our Region Of interest
-    const float* iPtr = Input + n * C * H * W + c * H * W;
+  for (unsigned c = tc; c < C; c += TileC) {
 
-    // Cooperatively load all input segment into our shared memory and pad it.
-    for (unsigned hh = h; hh < sH; hh += Bh)
-      for (unsigned ww = w; ww < sW; ww += Bw)
-        shared_mem[c * sH * sW * Rank + hh * sW * Rank + ww * Rank + r] =
-            (hh + hBlockOff >= pad       //
-             && hh + hBlockOff < H + pad //
-             && ww + wBlockOff >= pad    //
-             && ww + wBlockOff < W + pad)
-                ? iPtr[(hh + hBlockOff - pad) * W + (ww + wBlockOff - pad)]
-                : (0.0f); // Pad with Zeros if outside the bounds
+    const float* iPtr      = Input + n * C * H * W + c * H * W;
+    float        local_pix = 0.0f;
 
-    __syncthreads();
-
-    float local_pix = 0.0f;
-
-    for (unsigned y = 0; y < Y; ++y) {
-      local_x = 0.0f;
-      for (unsigned x = 0; x < X; ++x) {
-        local_x += shared_mem[(h + y) * sW + (w + x)]
-                   * const_filter[offX + x * Rank + r];
+#pragma unroll
+    for (unsigned y = 0; y < FilterDim; ++y) {
+#pragma unroll
+      for (unsigned x = 0; x < FilterDim; ++x) {
+        if (h + y >= pad && h + y < H + pad && //
+            w + x >= pad
+            && w + x < W + pad)
+          local_pix += iPtr[(h + y - pad) * H + (w + x - pad)]
+                       * FX[x * Rank + r] * FY[y * Rank + r];
       }
-      local_pix += local_x * const_filter[offY + y * Rank + r];
     }
-    local_acc += local_pix * const_filter[offC + c * Rank + r];
+    local_acc += local_pix * FC[c * Rank + r];
   }
 
-  // Handle block / input size mismatch. This occurs here and not earlier
-  // So that these threads can still participate in the cooperative shared
-  // Memory load.
-  if (hBlockOff + h >= H) return;
-  if (wBlockOff + w >= W) return;
-
-  // Store intermediate result in shared memory
+  // Save each intermediate channel, rank value to shared memory
   __syncthreads();
-  shared_mem[r * blockDim.x + threadIdx.x] = local_acc;
+  shared_mem[r * TileC + tc] = local_acc;
   __syncthreads();
 
-  // Reduce over channels for a given rank in shared memory.
-  for (unsigned cc = ((blockDim.x >> 1) << 1); cc > 0; cc >>= 1) {
-    if (threadIdx.x < cc && (threadIdx.x + cc) < C)
-      shared_mem[r * blockDim.x + threadIdx.x] +=
-          shared_mem[r * blockDim.x + (threadIdx.x + cc)];
+  // reduce channels into single rank vector // gather
+  local_acc = 0.0f;
+  for (unsigned cc = 0; cc < TileC; cc++)
+    local_acc += shared_mem[r * TileC + cc];
+
+  // Save intermediate rank vector to shared memory
+  __syncthreads();
+  if (tc == 0) shared_mem[r] = local_acc;
+  __syncthreads();
+
+  // scatter rank vector to all threads.
+  local_acc = shared_mem[r];
+
+  // parallel scale all output channels and sum over rank
+  for (unsigned t = tc; t < T; t += TileC) {
     __syncthreads();
+    shared_mem[r * TileC + tc] = local_acc * FT[t * Rank + r];
+    __syncthreads();
+
+    float output_acc = 0.0f;
+    for (unsigned rr = 0; rr < Rank; rr++)
+      output_acc += shared_mem[rr * TileC + tc];
+
+    // Output result to global memory
+    if (r == 0) Out[n * T * H * W + t * H * W + h * W + w] = output_acc;
   }
+}
 
-  local_acc = shared_mem[r * blockDim.x];
-  __syncthreads();
-  r = threadIdx.x;
-
-
-  for (unsigned t = threadIdx.y; t < T; t += blockDim.y) {
-    __syncthreads();
-    shared_mem[t * Rank + threadIdx.x] =
-        local_acc * const_filter[offT + t * Rank + r];
-    __syncthreads();
-
-    // Reduce over rank for a given output channel in shared memory.
-    for (unsigned rr = ((Rank >> 1) << 1); rr > 0; rr >>= 1) {
-      if (threadIdx.x < rr && (threadIdx.x + rr) < Rank)
-        shared_mem[t * Rank + threadIdx.x] +=
-            shared_mem[t * Rank + (threadIdx.x + cc)];
-      __syncthreads();
-    }
-
-    // Write this output pixel to global memory
-    if (threadIdx.x == 0)
-      Out[n * T * H * W + t * H * W + h * W + w] = shared_mem[t * Rank];
-  }
+/******************************************************************************
+   Compute the next highest power of 2 for an unsigned integer
+ *****************************************************************************/
+unsigned next_power_of_2(unsigned v) {
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+  return v;
 }
 
 
@@ -153,8 +148,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   const unsigned Y    = params.Y;
   const unsigned X    = params.X;
 
-  if (Y != X)
-    cerr << "Invalid filter shape. Height must equal width" << endl;
+  if (Y != X) cerr << "Invalid filter shape. Height must equal width" << endl;
 
   // This implementation uses the GPU's constant memory as a fast cache to
   // hold the relatively small and unchanging filter weights. These must all
@@ -176,23 +170,18 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned Bw = 1;
-  unsigned Bh = 1;
-  unsigned Bc = 1;
-  unsigned sW = X - 1 + Bw;
-  unsigned sH = Y - 1 + Bh;
-  /* size_t   smsz = sW * sH * sizeof(float); */
-  size_t smsz = Bc * sH * sW * Rank * sizeof(float);
+  unsigned BlockSize = min(256, next_power_of_2(Rank * C));
+  unsigned TileC     = BlockSize / Rank;
+  BlockSize          = TileC * Rank;
+  size_t smsz        = max(BlockSize, (TileC * Y * X)) * sizeof(float);
 
   if (smsz > prop.sharedMemPerBlock) {
     cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
          << endl;
   }
 
-  const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0);
-  const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
-  const dim3     Gshp(WgrdDim, HgrdDim, N);
-  const dim3     Bshp(Bc, Rank, Bw * Bh);
+  const dim3 Gshp(W, H, N);
+  const dim3 Bshp(BlockSize);
 
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
@@ -203,7 +192,30 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
     ErrChk(cudaDeviceSynchronize());
     cudaEventRecord(start);
     // clang-format off
-    conv2d_cp4_kernel<<<Gshp, Bshp, smsz>>>(Out, In, C, H, W, pad, offT, offC, offY, offX, T, Y, X, Rank, Bw, Bh, sW, sH); break;
+    switch (X){
+      case 19 : conv2d_cp4_kernel<19><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+                 break;
+      case 17 : conv2d_cp4_kernel<17><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+                 break;
+      case 15 : conv2d_cp4_kernel<15><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+                 break;
+      case 13 : conv2d_cp4_kernel<13><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+                break;
+      case 11 : conv2d_cp4_kernel<11><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+                break;
+      case 9 : conv2d_cp4_kernel<9><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+                break;
+      case 7 : conv2d_cp4_kernel<7><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+               break;
+      case 5 : conv2d_cp4_kernel<5><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+               break;
+      case 3 : conv2d_cp4_kernel<3><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+               break;
+      case 1 : conv2d_cp4_kernel<1><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+               break;
+      default :
+               cerr << "Block Size Not Supported! " << BlockSize << endl;
+    }
     // clang-format on
 
     cudaEventRecord(stop);
@@ -221,13 +233,12 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   return us / PROFCOUNT;
 }
 
-
 /*******************************************************************************
  * 2 Dimensional Convolution Operation using an order-4 CP decomposition.
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor Rank Decomposition.
  *******************************************************************************/
-template<unsigned FilterDim, unsigned Rank>
+template <unsigned FilterDim, unsigned Rank>
 __global__ void old_conv2d_cp4_kernel(float* __restrict__ Out,
                                       const float* __restrict__ Input,
                                       const unsigned N,
@@ -292,10 +303,8 @@ __global__ void old_conv2d_cp4_kernel(float* __restrict__ Out,
   // Handle block / input size mismatch. This occurs here and not earlier
   // So that these threads can still participate in the cooperative shared
   // Memory load.
-  if (hBlockOff + h >= H)
-    return;
-  if (wBlockOff + w >= W)
-    return;
+  if (hBlockOff + h >= H) return;
+  if (wBlockOff + w >= W) return;
 
   /****************************************************************************
    * Reduce over rank while scaling by kth filter value.

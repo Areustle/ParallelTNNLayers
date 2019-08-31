@@ -9,6 +9,9 @@ add_library(cp4convForward OBJECT cp4Conv2dForward.cu)
 add_library(cp4convBackwardData OBJECT cp4Conv2dBackwardData.cu)
 add_library(cp4convBackwardFilter OBJECT cp4Conv2dBackwardFilter.cu)
 target_compile_features(Tensor PUBLIC cxx_std_11)
+target_compile_features(cp4convForward PUBLIC cxx_std_11)
+target_compile_features(cp4convBackwardData PUBLIC cxx_std_11)
+target_compile_features(cp4convBackwardFilter PUBLIC cxx_std_11)
 
 # ##############################################################################
 # Dependencies
