@@ -67,26 +67,37 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
   auto ChannelWarp = cg::tiled_partition<CHANNEL_DIM>(cg::this_thread_block());
 
-  unsigned       tc    = threadIdx.x % CHANNEL_DIM;
-  unsigned       r     = threadIdx.x / CHANNEL_DIM;
-  unsigned       w     = threadIdx.y % Bw;
-  unsigned       h     = threadIdx.y / Bw;
-  const unsigned n     = blockIdx.z;
-  const unsigned TileC = blockDim.x / Rank;
+  const unsigned n  = blockIdx.z;
+  unsigned       tc = (threadIdx.x) % CHANNEL_DIM;
+  unsigned       r  = (threadIdx.x / CHANNEL_DIM) % RANK_DIM;
+  unsigned       w  = (threadIdx.x / CHANNEL_DIM / RANK_DIM) % Bw;
+  unsigned       h  = (threadIdx.x / CHANNEL_DIM / RANK_DIM / Bw);
 
   const unsigned wBlockOff = blockIdx.x * Bw;
   const unsigned hBlockOff = blockIdx.y * Bh;
+  const unsigned sH        = Y - 1 + Bh;
+  const unsigned sW        = X - 1 + Bw;
 
-  float* work_mem = shared_mem + h * Bw * Rank + w * Rank;
-
-  if (tc >= TileC) return;
-  if (w + wBlockOff >= W) return;
-  if (h + hBlockOff >= H) return;
+  if (h+hBlockOff >= H) return;
+  if (w+wBlockOff >= W) return;
   if (r >= Rank) return;
 
   float local_acc = 0.0f;
 
-  for (unsigned c = tc; c < C; c += TileC) {
+  // Sub Block of "tc" threads for shared memory load.
+  unsigned SubBlockDim   = blockDim.x / CHANNEL_DIM;
+  unsigned SubBlockDim_H = Bh;
+  unsigned SubBlockDim_W = SubBlockDim / SubBlockDim_H;
+
+  unsigned stc = threadIdx.x / SubBlockDim;
+  unsigned stt = threadIdx.x % SubBlockDim;
+  unsigned sth = stt / SubBlockDim_W;
+  unsigned stw = stt % SubBlockDim_W;
+
+  for (unsigned rc = tc; rc < C; rc += CHANNEL_DIM) {
+
+    auto     active = cg::coalesced_threads();
+    unsigned c      = (rc / CHANNEL_DIM) + stc;
 
     const float* iPtr      = Input + n * C * H * W + c * H * W;
     float        local_pix = 0.0f;
@@ -102,8 +113,30 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
               * FX[x * Rank + r] * FY[y * Rank + r];
       }
     }
-    local_acc += local_pix * FC[c * Rank + r];
+
+    /* for (unsigned y = sth; y < sH; y += SubBlockDim_H) */
+    /*   for (unsigned x = stw; x < sW; x += SubBlockDim_W) */
+    /*     shared_mem[stc * sH * sW + y * sW + x] = */
+    /*         (y + sth + hBlockOff >= pad       // */
+    /*          && y + sth + hBlockOff < H + pad // */
+    /*          && x + stw + wBlockOff >= pad    // */
+    /*          && x + stw + wBlockOff < W + pad) */
+    /*             ? iPtr[(y + sth + hBlockOff - pad) * W */
+    /*                    + (x + stw + wBlockOff - pad)] */
+    /*             : (0.0f); // Pad with Zeros if outside the bounds */
+
+    /* active.sync(); */
+
+    /* for (unsigned y = 0; y < sH; ++y) { */
+    /*   for (unsigned x = 0; x < sW; ++x) { */
+    /*     local_pix += shared_mem[tc * sH * sW + y * sW + x] * FX[x * Rank + r] */
+    /*                  * FY[y * Rank + r]; */
+    /*   } */
+    /* } */
+    local_acc += local_pix * FC[tc * Rank + r];
   }
+
+  float* work_mem = shared_mem + h * Bw * Rank + w * Rank;
 
   local_acc = reduce_sum_tile_shfl<CHANNEL_DIM>(ChannelWarp, local_acc);
 
@@ -112,27 +145,27 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   __syncthreads();
 
   // Swap which threads are in the warp.
-  tc = threadIdx.x ;/// RANK_DIM;
-  r  = threadIdx.x ;//% RANK_DIM;
+  tc = (threadIdx.x / RANK_DIM) % CHANNEL_DIM;
+  r  = threadIdx.x % RANK_DIM;
 
-  /* auto RankWarp = cg::tiled_partition<RANK_DIM>(cg::this_thread_block()); */
+  auto RankWarp = cg::tiled_partition<RANK_DIM>(cg::this_thread_block());
 
   // scatter rank vector to all threads.
   local_acc = work_mem[r];
-  float rvec [RANK_DIM];
-  for (int i=0; i<RANK_DIM; ++i) rvec[i] = work_mem[i];
+  /* float rvec[RANK_DIM]; */
+  /* for (int i = 0; i < RANK_DIM; ++i) rvec[i] = work_mem[i]; */
 
   // parallel scale all output channels and sum over rank
-  for (unsigned t = tc; t < T; t += TileC) {
+  for (unsigned t = tc; t < T; t += CHANNEL_DIM) {
 
-    /* float output_acc = local_acc * FT[t * Rank + r]; */
-    float output_acc = 0.0;
-    for (int i=0; i<RANK_DIM; ++i) output_acc += rvec[i] * FT[t * Rank + r];
-    /* output_acc       = reduce_sum_tile_shfl<RANK_DIM>(RankWarp, output_acc); */
+    float output_acc = local_acc * FT[t * Rank + r];
+    /* float output_acc = 0.0; */
+    /* for (int i = 0; i < RANK_DIM; ++i) output_acc += rvec[i] * FT[t * Rank +
+     * r]; */
+    output_acc = reduce_sum_tile_shfl<RANK_DIM>(RankWarp, output_acc);
 
     // Output result to global memory
-    if (r == 0)
-    /* if (RankWarp.thread_rank() == 0) */
+    if (r == 0) /* if (RankWarp.thread_rank() == 0) */
       Out[n * T * H * W + t * H * W + (h + hBlockOff) * W + w + wBlockOff] =
           output_acc;
   }
@@ -187,7 +220,6 @@ unsigned log_2(unsigned n) {
 }
 
 
-
 float cp4_conv2d_forward_gpu(tensor_shape params,
                              const float* In,
                              const float* FT,
@@ -229,7 +261,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned ChannelPow2 = min(32, next_highest_power_2(C));
+  unsigned ChannelPow2 = min(32, next_highest_power_2(max(C,T)));
   unsigned RankPow2    = min(32, next_lowest_power_2(Rank));
   unsigned RankLog2    = min(32, log_2(Rank));
   /* cout << ChannelPow2 << " " << RankPow2 << endl; */
@@ -239,13 +271,15 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   unsigned TileC         = BlockSize / Rank;
   BlockSize              = TileC * Rank;
   const unsigned spatial = intSqrt(NumThreads / BlockSize);
-  const unsigned Bh      = spatial;
-  const unsigned Bw      = spatial;
-  /* const unsigned sH = Y - 1 + Bh; */
-  /* const unsigned sW = X - 1 + Bw; */
-  /* BlockSize *= Bh * Bw; */
+  const unsigned Bh      = min(spatial, H);
+  const unsigned Bw      = min(spatial, W);
+  const unsigned sH      = Y - 1 + Bh;
+  const unsigned sW      = X - 1 + Bw;
+  BlockSize *= Bh * Bw;
+  /* cout << BlockSize << " " << TileC << " " << Rank << " " << Bh << " " << Bw */
+       /* << endl; */
 
-  size_t smsz = Rank * Bh * Bw * sizeof(float);
+  size_t smsz = max(Rank * Bh * Bw, sH * sW * TileC) * sizeof(float);
 
   if (smsz > prop.sharedMemPerBlock) {
     cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
@@ -257,7 +291,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   /* cout << WgrdDim << " " << HgrdDim << endl; */
 
   const dim3 Gshp(WgrdDim, HgrdDim, N);
-  const dim3 Bshp(BlockSize, Bh * Bw);
+  const dim3 Bshp(BlockSize);
   /* const dim3 Bshp(TileC, Bh * Bw, Rank); */
 
   cudaEvent_t start, stop;

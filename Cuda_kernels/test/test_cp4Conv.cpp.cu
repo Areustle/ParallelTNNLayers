@@ -14,12 +14,12 @@ using namespace std;
 TEST_CASE("Single Convolution Kernel test") {
 
   unsigned n    = 1;
-  unsigned c    = 16;
-  unsigned x    = 224;
-  unsigned pad  = 2;
-  unsigned t    = 160;
-  unsigned f    = 5;
-  unsigned rank = 16;
+  unsigned c    = 1;
+  unsigned x    = 4;
+  unsigned pad  = 0;
+  unsigned t    = 1;
+  unsigned f    = 1;
+  unsigned rank = 1;
 
   SUBCASE("Forward Convolution Data test") {
 
@@ -50,7 +50,7 @@ TEST_CASE("Single Convolution Kernel test") {
 TEST_CASE("Extended Convolution Test") {
 
   std::vector<std::string> tensor_list{
-    "Cuda_kernels/bench/tensors_alexnet.txt",
+    //"Cuda_kernels/bench/tensors_alexnet.txt",
     //"Cuda_kernels/bench/tensors_batch_size.txt",
     //"Cuda_kernels/bench/tensors_channel_depth.txt",
     //"Cuda_kernels/bench/tensors_image_size.txt",
