@@ -1,8 +1,10 @@
 #include "cp4Conv2dForward.cuh"
+#include <cooperative_groups.h>
 #include <iostream>
 #include <stdlib.h>
 
 using namespace std;
+namespace cg = cooperative_groups;
 
 // Simple cuda error checking macro
 #define ErrChk(ans)                                                            \
@@ -22,14 +24,27 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
 __constant__ float const_filter[1 << 14];
 
 
+template <int tile_sz>
+__device__ float
+reduce_sum_tile_shfl(cg::thread_block_tile<tile_sz> g, float val) {
+  // Each iteration halves the number of active threads
+  // Each thread adds its partial sum[i] to sum[lane+i]
+  for (int i = g.size() / 2; i > 0; i /= 2) { val += g.shfl_down(val, i); }
+
+  return val; // note: only thread 0 will return full sum
+}
+
+
 /*******************************************************************************
  * 2 Dimensional Convolution Operation using an order-4 CP decomposition.
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor Rank Decomposition.
  *******************************************************************************/
-template <unsigned FilterDim>
-__global__ void    conv2d_cp4_kernel(float* __restrict__ Out,
+template <unsigned CHANNEL_DIM, unsigned RANK_DIM>
+__global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
+                                  const unsigned H,
+                                  const unsigned W,
                                   const unsigned pad,
                                   const unsigned offT,
                                   const unsigned offC,
@@ -39,7 +54,9 @@ __global__ void    conv2d_cp4_kernel(float* __restrict__ Out,
                                   const unsigned C,
                                   const unsigned Y,
                                   const unsigned X,
-                                  const unsigned Rank) {
+                                  const unsigned Rank,
+                                  const unsigned Bh,
+                                  const unsigned Bw) {
 
   extern __shared__ float shared_mem[];
 
@@ -48,17 +65,24 @@ __global__ void    conv2d_cp4_kernel(float* __restrict__ Out,
   const float* FY = const_filter + offY;
   const float* FX = const_filter + offX;
 
-  const unsigned w     = blockIdx.x;
-  const unsigned h     = blockIdx.y;
-  const unsigned n     = blockIdx.z;
-  const unsigned W     = gridDim.x;
-  const unsigned H     = gridDim.y;
-  const unsigned TileC = blockDim.x / Rank;
-  const unsigned r     = threadIdx.x / TileC;
-  const unsigned tc    = threadIdx.x % TileC;
+  auto ChannelWarp = cg::tiled_partition<CHANNEL_DIM>(cg::this_thread_block());
 
-  if (r >= Rank) return;
+  unsigned       tc    = threadIdx.x % CHANNEL_DIM;
+  unsigned       r     = threadIdx.x / CHANNEL_DIM;
+  unsigned       w     = threadIdx.y % Bw;
+  unsigned       h     = threadIdx.y / Bw;
+  const unsigned n     = blockIdx.z;
+  const unsigned TileC = blockDim.x / Rank;
+
+  const unsigned wBlockOff = blockIdx.x * Bw;
+  const unsigned hBlockOff = blockIdx.y * Bh;
+
+  float* work_mem = shared_mem + h * Bw * Rank + w * Rank;
+
   if (tc >= TileC) return;
+  if (w + wBlockOff >= W) return;
+  if (h + hBlockOff >= H) return;
+  if (r >= Rank) return;
 
   float local_acc = 0.0f;
 
@@ -67,67 +91,76 @@ __global__ void    conv2d_cp4_kernel(float* __restrict__ Out,
     const float* iPtr      = Input + n * C * H * W + c * H * W;
     float        local_pix = 0.0f;
 
-#pragma unroll
-    for (unsigned y = 0; y < FilterDim; ++y) {
-#pragma unroll
-      for (unsigned x = 0; x < FilterDim; ++x) {
-        if (h + y >= pad && h + y < H + pad && //
-            w + x >= pad
-            && w + x < W + pad)
-          local_pix += iPtr[(h + y - pad) * H + (w + x - pad)]
-                       * FX[x * Rank + r] * FY[y * Rank + r];
+    for (unsigned y = 0; y < Y; ++y) {
+      for (unsigned x = 0; x < X; ++x) {
+        if (h + hBlockOff + y >= pad       //
+            && h + hBlockOff + y < H + pad //
+            && w + wBlockOff + x >= pad    //
+            && w + wBlockOff + x < W + pad)
+          local_pix +=
+              iPtr[(h + hBlockOff + y - pad) * H + (w + wBlockOff + x - pad)]
+              * FX[x * Rank + r] * FY[y * Rank + r];
       }
     }
     local_acc += local_pix * FC[c * Rank + r];
   }
 
-  // Save each intermediate channel, rank value to shared memory
-  __syncthreads();
-  shared_mem[r * TileC + tc] = local_acc;
-  __syncthreads();
+  /* ChannelWarp.sync(); */
+  /* local_acc = reduce_sum_tile_shfl<CHANNEL_DIM>(ChannelWarp, local_acc); */
 
-  // reduce channels into single rank vector // gather
-  local_acc = 0.0f;
-  for (unsigned cc = 0; cc < TileC; cc++)
-    local_acc += shared_mem[r * TileC + cc];
+  /* // Save intermediate rank vector to shared memory */
+  /* if (ChannelWarp.thread_rank() == 0) work_mem[r] = local_acc; */
+  /* __syncthreads(); */
 
-  // Save intermediate rank vector to shared memory
-  __syncthreads();
-  if (tc == 0) shared_mem[r] = local_acc;
-  __syncthreads();
+  /* // Swap which threads are in the warp. */
+  /* tc = threadIdx.x / RANK_DIM; */
+  /* r  = threadIdx.x % RANK_DIM; */
 
-  // scatter rank vector to all threads.
-  local_acc = shared_mem[r];
+  /* auto RankWarp = cg::tiled_partition<RANK_DIM>(cg::this_thread_block()); */
+
+  /* // scatter rank vector to all threads. */
+  /* local_acc = work_mem[r]; */
+  /* RankWarp.sync(); */
 
   // parallel scale all output channels and sum over rank
   for (unsigned t = tc; t < T; t += TileC) {
-    __syncthreads();
-    shared_mem[r * TileC + tc] = local_acc * FT[t * Rank + r];
-    __syncthreads();
 
-    float output_acc = 0.0f;
-    for (unsigned rr = 0; rr < Rank; rr++)
-      output_acc += shared_mem[rr * TileC + tc];
+    float output_acc = local_acc * FT[t * Rank + r];
+    /* output_acc       = reduce_sum_tile_shfl<RANK_DIM>(RankWarp, output_acc); */
+    /* RankWarp.sync(); */
 
     // Output result to global memory
-    if (r == 0) Out[n * T * H * W + t * H * W + h * W + w] = output_acc;
+    /* if (r == 0) */
+    /* if (RankWarp.thread_rank() == 0) */
+      Out[n * T * H * W + t * H * W + (h + hBlockOff) * W + w + wBlockOff] =
+          output_acc;
   }
 }
 
 /******************************************************************************
-   Compute the next highest power of 2 for an unsigned integer
+   Compute the Integer square root of an unsigned integer.
  *****************************************************************************/
-unsigned next_power_of_2(unsigned v) {
-  v--;
-  v |= v >> 1;
-  v |= v >> 2;
-  v |= v >> 4;
-  v |= v >> 8;
-  v |= v >> 16;
-  v++;
-  return v;
+unsigned intSqrt(unsigned const n) {
+  if (n < 2) return n;
+
+  // Recursive call:
+  unsigned p = intSqrt(n >> 2) << 1;
+  unsigned q = p + 1;
+  if (q * q > n) return p;
+  return q;
 }
 
+/******************************************************************************
+   Compute the next lowest power of 2.
+ *****************************************************************************/
+unsigned next_lowest_power_2(unsigned n) {
+  n |= (n >> 1);
+  n |= (n >> 2);
+  n |= (n >> 4);
+  n |= (n >> 8);
+  n |= (n >> 16);
+  return n - (n >> 1);
+}
 
 float cp4_conv2d_forward_gpu(tensor_shape params,
                              const float* In,
@@ -170,18 +203,34 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned BlockSize = min(256, next_power_of_2(Rank * C));
-  unsigned TileC     = BlockSize / Rank;
-  BlockSize          = TileC * Rank;
-  size_t smsz        = max(BlockSize, (TileC * Y * X)) * sizeof(float);
+  unsigned ChannelPow2 = min(32, next_lowest_power_2(C));
+  unsigned RankPow2    = min(32, next_lowest_power_2(Rank));
+  /* cout << ChannelPow2 << " " << RankPow2 << endl; */
+
+  unsigned BlockSize     = min(256, Rank * ChannelPow2);
+  unsigned TileC         = BlockSize / Rank;
+  BlockSize              = TileC * Rank;
+  const unsigned spatial = intSqrt(256 / BlockSize);
+  const unsigned Bh      = spatial;
+  const unsigned Bw      = spatial;
+  /* const unsigned sH = Y - 1 + Bh; */
+  /* const unsigned sW = X - 1 + Bw; */
+  /* BlockSize *= Bh * Bw; */
+
+  size_t smsz = Rank * Bh * Bw * sizeof(float);
 
   if (smsz > prop.sharedMemPerBlock) {
     cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
          << endl;
   }
 
-  const dim3 Gshp(W, H, N);
-  const dim3 Bshp(BlockSize);
+  const unsigned WgrdDim = (W / Bw) + ((W % Bw) != 0);
+  const unsigned HgrdDim = (H / Bh) + ((H % Bh) != 0);
+  /* cout << WgrdDim << " " << HgrdDim << endl; */
+
+  const dim3 Gshp(WgrdDim, HgrdDim, N);
+  const dim3 Bshp(BlockSize, Bh * Bw);
+  /* const dim3 Bshp(TileC, Bh * Bw, Rank); */
 
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
@@ -191,32 +240,72 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   for (unsigned i = 0; i < PROFCOUNT; ++i) {
     ErrChk(cudaDeviceSynchronize());
     cudaEventRecord(start);
+
     // clang-format off
-    switch (X){
-      case 19 : conv2d_cp4_kernel<19><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
-                 break;
-      case 17 : conv2d_cp4_kernel<17><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
-                 break;
-      case 15 : conv2d_cp4_kernel<15><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
-                 break;
-      case 13 : conv2d_cp4_kernel<13><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
-                break;
-      case 11 : conv2d_cp4_kernel<11><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
-                break;
-      case 9 : conv2d_cp4_kernel<9><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
-                break;
-      case 7 : conv2d_cp4_kernel<7><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+    switch(ChannelPow2) {
+      case 32:
+        switch(RankPow2) {
+          case 32: conv2d_cp4_kernel<32,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 16: conv2d_cp4_kernel<32,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 8: conv2d_cp4_kernel<32,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 4: conv2d_cp4_kernel<32,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 2: conv2d_cp4_kernel<32,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 1: conv2d_cp4_kernel<32,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+        }
                break;
-      case 5 : conv2d_cp4_kernel<5><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+      case 16:
+        switch(RankPow2) {
+          case 32: conv2d_cp4_kernel<16,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 16: conv2d_cp4_kernel<16,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 8: conv2d_cp4_kernel<16,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 4: conv2d_cp4_kernel<16,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 2: conv2d_cp4_kernel<16,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 1: conv2d_cp4_kernel<16,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+        }
                break;
-      case 3 : conv2d_cp4_kernel<3><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+      case 8:
+        switch(RankPow2) {
+          case 32: conv2d_cp4_kernel<8,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 16: conv2d_cp4_kernel<8,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 8: conv2d_cp4_kernel<8,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 4: conv2d_cp4_kernel<8,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 2: conv2d_cp4_kernel<8,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 1: conv2d_cp4_kernel<8,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+        }
                break;
-      case 1 : conv2d_cp4_kernel<1><<<Gshp, Bshp, smsz>>>(Out, In, pad, offT, offC, offY, offX, T, C, Y, X, Rank);
+      case 4:
+        switch(RankPow2) {
+          case 32: conv2d_cp4_kernel<4,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 16: conv2d_cp4_kernel<4,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 8: conv2d_cp4_kernel<4,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 4: conv2d_cp4_kernel<4,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 2: conv2d_cp4_kernel<4,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 1: conv2d_cp4_kernel<4,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+        }
                break;
-      default :
-               cerr << "Block Size Not Supported! " << BlockSize << endl;
+      case 2:
+        switch(RankPow2) {
+          case 32: conv2d_cp4_kernel<2,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 16: conv2d_cp4_kernel<2,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 8: conv2d_cp4_kernel<2,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 4: conv2d_cp4_kernel<2,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 2: conv2d_cp4_kernel<2,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 1: conv2d_cp4_kernel<2,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+        }
+               break;
+      case 1:
+        switch(RankPow2) {
+          case 32: conv2d_cp4_kernel<1,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 16: conv2d_cp4_kernel<1,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 8: conv2d_cp4_kernel<1,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 4: conv2d_cp4_kernel<1,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 2: conv2d_cp4_kernel<1,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+          case 1: conv2d_cp4_kernel<1,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
+        }
+               break;
     }
-    // clang-format on
+
+
 
     cudaEventRecord(stop);
     ErrChk(cudaPeekAtLastError());
