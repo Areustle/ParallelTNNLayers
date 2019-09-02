@@ -25,11 +25,11 @@ __constant__ float const_filter[1 << 14];
 
 
 template <int tile_sz>
-__device__ float
+__device__ __inline__ float
 reduce_sum_tile_shfl(cg::thread_block_tile<tile_sz> g, float val) {
   // Each iteration halves the number of active threads
   // Each thread adds its partial sum[i] to sum[lane+i]
-  for (int i = g.size() / 2; i > 0; i /= 2) { val += g.shfl_down(val, i); }
+  for (int i = g.size() >> 1; i > 0; i >>= 1) { val += g.shfl_down(val, i); }
 
   return val; // note: only thread 0 will return full sum
 }
@@ -67,37 +67,30 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
   auto ChannelWarp = cg::tiled_partition<CHANNEL_DIM>(cg::this_thread_block());
 
-  const unsigned n  = blockIdx.z;
-  unsigned       tc = (threadIdx.x) % CHANNEL_DIM;
-  unsigned       r  = (threadIdx.x / CHANNEL_DIM) % RANK_DIM;
-  unsigned       w  = (threadIdx.x / CHANNEL_DIM / RANK_DIM) % Bw;
-  unsigned       h  = (threadIdx.x / CHANNEL_DIM / RANK_DIM / Bw);
+  const unsigned n = blockIdx.z;
+
+  unsigned tc = (threadIdx.x) % CHANNEL_DIM;
+  unsigned tr = (threadIdx.x / CHANNEL_DIM) % RANK_DIM;
+  unsigned w  = (threadIdx.x / CHANNEL_DIM / RANK_DIM) % Bw;
+  unsigned h  = (threadIdx.x / CHANNEL_DIM / RANK_DIM / Bw);
 
   const unsigned wBlockOff = blockIdx.x * Bw;
   const unsigned hBlockOff = blockIdx.y * Bh;
-  const unsigned sH        = Y - 1 + Bh;
-  const unsigned sW        = X - 1 + Bw;
 
-  if (h+hBlockOff >= H) return;
-  if (w+wBlockOff >= W) return;
-  if (r >= Rank) return;
+  if (h + hBlockOff >= H) return;
+  if (w + wBlockOff >= W) return;
+  if (tr >= Rank) return;
 
   float local_acc = 0.0f;
+  float rank_acc[RANK_DIM];
+  for (unsigned r = 0; r < RANK_DIM; ++r) rank_acc[r] = 0.0f;
 
-  // Sub Block of "tc" threads for shared memory load.
-  unsigned SubBlockDim   = blockDim.x / CHANNEL_DIM;
-  unsigned SubBlockDim_H = Bh;
-  unsigned SubBlockDim_W = SubBlockDim / SubBlockDim_H;
+  /* const unsigned sH = Y - 1 + Bh; */
+  /* const unsigned sW = X - 1 + Bw; */
 
-  unsigned stc = threadIdx.x / SubBlockDim;
-  unsigned stt = threadIdx.x % SubBlockDim;
-  unsigned sth = stt / SubBlockDim_W;
-  unsigned stw = stt % SubBlockDim_W;
+  for (unsigned c = tc; c < C; c += CHANNEL_DIM) {
 
-  for (unsigned rc = tc; rc < C; rc += CHANNEL_DIM) {
-
-    auto     active = cg::coalesced_threads();
-    unsigned c      = (rc / CHANNEL_DIM) + stc;
+    auto active = cg::coalesced_threads();
 
     const float* iPtr      = Input + n * C * H * W + c * H * W;
     float        local_pix = 0.0f;
@@ -108,66 +101,64 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
             && h + hBlockOff + y < H + pad //
             && w + wBlockOff + x >= pad    //
             && w + wBlockOff + x < W + pad)
-          local_pix +=
-              iPtr[(h + hBlockOff + y - pad) * H + (w + wBlockOff + x - pad)]
-              * FX[x * Rank + r] * FY[y * Rank + r];
+          local_pix += iPtr[(h + hBlockOff + y - pad) * H //
+                            + (w + wBlockOff + x - pad)]
+                       * FX[x * Rank + tr] * FY[y * Rank + tr];
       }
     }
 
-    /* for (unsigned y = sth; y < sH; y += SubBlockDim_H) */
-    /*   for (unsigned x = stw; x < sW; x += SubBlockDim_W) */
-    /*     shared_mem[stc * sH * sW + y * sW + x] = */
-    /*         (y + sth + hBlockOff >= pad       // */
-    /*          && y + sth + hBlockOff < H + pad // */
-    /*          && x + stw + wBlockOff >= pad    // */
-    /*          && x + stw + wBlockOff < W + pad) */
-    /*             ? iPtr[(y + sth + hBlockOff - pad) * W */
-    /*                    + (x + stw + wBlockOff - pad)] */
+    /* for (unsigned y = w; y < sH; y += Bh) */
+    /*   for (unsigned x = w; x < sW; x += Bw) */
+    /*     shared_mem[threadIdx.x % 32] = */
+    /*         (y + hBlockOff >= pad       // */
+    /*          && y + hBlockOff < H + pad // */
+    /*          && x + wBlockOff >= pad    // */
+    /*          && x + wBlockOff < W + pad) */
+    /*             ? iPtr[threadIdx.x % 32] */
     /*             : (0.0f); // Pad with Zeros if outside the bounds */
 
     /* active.sync(); */
 
     /* for (unsigned y = 0; y < sH; ++y) { */
     /*   for (unsigned x = 0; x < sW; ++x) { */
-    /*     local_pix += shared_mem[tc * sH * sW + y * sW + x] * FX[x * Rank + r] */
-    /*                  * FY[y * Rank + r]; */
+    /*     local_pix += shared_mem[threadIdx.x % 32] * FX[x * Rank + tr] // */
+    /*                  * FY[y * Rank + tr]; */
     /*   } */
     /* } */
-    local_acc += local_pix * FC[tc * Rank + r];
+
+    for (unsigned r = 0; r < RANK_DIM; ++r)
+      rank_acc[r] += local_pix * FC[tc * Rank + tr];
   }
 
-  float* work_mem = shared_mem + h * Bw * Rank + w * Rank;
+  float* work_mem = shared_mem + h * Bw * RANK_DIM + w * RANK_DIM;
 
   local_acc = reduce_sum_tile_shfl<CHANNEL_DIM>(ChannelWarp, local_acc);
 
   // Save intermediate rank vector to shared memory
-  if (ChannelWarp.thread_rank() == 0) work_mem[r] = local_acc;
+  if (ChannelWarp.thread_rank() == 0) work_mem[tr] = local_acc;
   __syncthreads();
 
   // Swap which threads are in the warp.
   tc = (threadIdx.x / RANK_DIM) % CHANNEL_DIM;
-  r  = threadIdx.x % RANK_DIM;
+  tr = threadIdx.x % RANK_DIM;
 
   auto RankWarp = cg::tiled_partition<RANK_DIM>(cg::this_thread_block());
 
-  // scatter rank vector to all threads.
-  local_acc = work_mem[r];
-  /* float rvec[RANK_DIM]; */
-  /* for (int i = 0; i < RANK_DIM; ++i) rvec[i] = work_mem[i]; */
+  for (int r = 0; r < RANK_DIM; ++r) rank_acc[r] = work_mem[r];
 
   // parallel scale all output channels and sum over rank
   for (unsigned t = tc; t < T; t += CHANNEL_DIM) {
 
-    float output_acc = local_acc * FT[t * Rank + r];
-    /* float output_acc = 0.0; */
-    /* for (int i = 0; i < RANK_DIM; ++i) output_acc += rvec[i] * FT[t * Rank +
-     * r]; */
+    /* float output_acc = local_acc * FT[t * Rank + r]; */
+    float output_acc = 0.0;
+    for (unsigned r = 0; r < RANK_DIM; ++r)
+      output_acc += rank_acc[r] * FT[t * Rank + r];
+
     output_acc = reduce_sum_tile_shfl<RANK_DIM>(RankWarp, output_acc);
 
     // Output result to global memory
-    if (r == 0) /* if (RankWarp.thread_rank() == 0) */
-      Out[n * T * H * W + t * H * W + (h + hBlockOff) * W + w + wBlockOff] =
-          output_acc;
+    if (tr == 0) /* if (RankWarp.thread_rank() == 0) */
+      Out[threadIdx.x] = output_acc;
   }
 }
 
@@ -187,6 +178,7 @@ unsigned intSqrt(unsigned const n) {
    Compute the next highest power of 2 for an unsigned integer
  *****************************************************************************/
 unsigned next_highest_power_2(unsigned n) {
+  if (n == 0) return 1;
   n--;
   n |= n >> 1;
   n |= n >> 2;
@@ -212,10 +204,10 @@ unsigned next_lowest_power_2(unsigned n) {
 /******************************************************************************
    Compute the next lowest power of 2.
  *****************************************************************************/
-unsigned log_2(unsigned n) {
+unsigned log_2(unsigned n, unsigned step = 1) {
   unsigned int r = 0; // r will be lg(v)
 
-  while (n >>= 1) r++;
+  while (n >>= step) r++;
   return r;
 }
 
@@ -261,25 +253,15 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned ChannelPow2 = min(32, next_highest_power_2(max(C,T)));
-  unsigned RankPow2    = min(32, next_lowest_power_2(Rank));
-  unsigned RankLog2    = min(32, log_2(Rank));
-  /* cout << ChannelPow2 << " " << RankPow2 << endl; */
+  const unsigned CHANNEL_DIM = 4;
+  const unsigned RANK_DIM    = min(4, Rank);
+  const unsigned Bh          = 4;
+  const unsigned Bw          = 4;
+  const unsigned BlockSize   = CHANNEL_DIM * RANK_DIM * Bh * Bw;
+  size_t         smsz        = RANK_DIM * Bh * Bw * sizeof(float);
 
-  unsigned NumThreads    = 256;
-  unsigned BlockSize     = min(NumThreads, Rank * ChannelPow2);
-  unsigned TileC         = BlockSize / Rank;
-  BlockSize              = TileC * Rank;
-  const unsigned spatial = intSqrt(NumThreads / BlockSize);
-  const unsigned Bh      = min(spatial, H);
-  const unsigned Bw      = min(spatial, W);
-  const unsigned sH      = Y - 1 + Bh;
-  const unsigned sW      = X - 1 + Bw;
-  BlockSize *= Bh * Bw;
-  /* cout << BlockSize << " " << TileC << " " << Rank << " " << Bh << " " << Bw */
-       /* << endl; */
-
-  size_t smsz = max(Rank * Bh * Bw, sH * sW * TileC) * sizeof(float);
+  cout << BlockSize << " " << CHANNEL_DIM << " "      //
+       << RANK_DIM << " " << Bh << " " << Bw << endl; //"\t\t";
 
   if (smsz > prop.sharedMemPerBlock) {
     cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
@@ -292,7 +274,6 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
 
   const dim3 Gshp(WgrdDim, HgrdDim, N);
   const dim3 Bshp(BlockSize);
-  /* const dim3 Bshp(TileC, Bh * Bw, Rank); */
 
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
@@ -304,9 +285,9 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
     cudaEventRecord(start);
 
     // clang-format off
-    switch(ChannelPow2) {
+    switch(CHANNEL_DIM) {
       case 32:
-        switch(RankPow2) {
+        switch(RANK_DIM) {
           case 32: conv2d_cp4_kernel<32,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 16: conv2d_cp4_kernel<32,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 8: conv2d_cp4_kernel<32,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
@@ -316,7 +297,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
         }
                break;
       case 16:
-        switch(RankPow2) {
+        switch(RANK_DIM) {
           case 32: conv2d_cp4_kernel<16,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 16: conv2d_cp4_kernel<16,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 8: conv2d_cp4_kernel<16,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
@@ -326,7 +307,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
         }
                break;
       case 8:
-        switch(RankPow2) {
+        switch(RANK_DIM) {
           case 32: conv2d_cp4_kernel<8,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 16: conv2d_cp4_kernel<8,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 8: conv2d_cp4_kernel<8,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
@@ -336,7 +317,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
         }
                break;
       case 4:
-        switch(RankPow2) {
+        switch(RANK_DIM) {
           case 32: conv2d_cp4_kernel<4,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 16: conv2d_cp4_kernel<4,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 8: conv2d_cp4_kernel<4,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
@@ -346,7 +327,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
         }
                break;
       case 2:
-        switch(RankPow2) {
+        switch(RANK_DIM) {
           case 32: conv2d_cp4_kernel<2,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 16: conv2d_cp4_kernel<2,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 8: conv2d_cp4_kernel<2,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
@@ -356,7 +337,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
         }
                break;
       case 1:
-        switch(RankPow2) {
+        switch(RANK_DIM) {
           case 32: conv2d_cp4_kernel<1,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 16: conv2d_cp4_kernel<1,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 8: conv2d_cp4_kernel<1,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;

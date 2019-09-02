@@ -15,7 +15,7 @@ TEST_CASE("Single Convolution Kernel test") {
 
   unsigned n    = 1;
   unsigned c    = 1;
-  unsigned x    = 4;
+  unsigned x    = 2;
   unsigned pad  = 0;
   unsigned t    = 1;
   unsigned f    = 1;
