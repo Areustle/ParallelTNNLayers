@@ -105,32 +105,33 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     local_acc += local_pix * FC[c * Rank + r];
   }
 
-  /* ChannelWarp.sync(); */
-  /* local_acc = reduce_sum_tile_shfl<CHANNEL_DIM>(ChannelWarp, local_acc); */
+  local_acc = reduce_sum_tile_shfl<CHANNEL_DIM>(ChannelWarp, local_acc);
 
-  /* // Save intermediate rank vector to shared memory */
-  /* if (ChannelWarp.thread_rank() == 0) work_mem[r] = local_acc; */
-  /* __syncthreads(); */
+  // Save intermediate rank vector to shared memory
+  if (ChannelWarp.thread_rank() == 0) work_mem[r] = local_acc;
+  __syncthreads();
 
-  /* // Swap which threads are in the warp. */
-  /* tc = threadIdx.x / RANK_DIM; */
-  /* r  = threadIdx.x % RANK_DIM; */
+  // Swap which threads are in the warp.
+  tc = threadIdx.x ;/// RANK_DIM;
+  r  = threadIdx.x ;//% RANK_DIM;
 
   /* auto RankWarp = cg::tiled_partition<RANK_DIM>(cg::this_thread_block()); */
 
-  /* // scatter rank vector to all threads. */
-  /* local_acc = work_mem[r]; */
-  /* RankWarp.sync(); */
+  // scatter rank vector to all threads.
+  local_acc = work_mem[r];
+  float rvec [RANK_DIM];
+  for (int i=0; i<RANK_DIM; ++i) rvec[i] = work_mem[i];
 
   // parallel scale all output channels and sum over rank
   for (unsigned t = tc; t < T; t += TileC) {
 
-    float output_acc = local_acc * FT[t * Rank + r];
+    /* float output_acc = local_acc * FT[t * Rank + r]; */
+    float output_acc = 0.0;
+    for (int i=0; i<RANK_DIM; ++i) output_acc += rvec[i] * FT[t * Rank + r];
     /* output_acc       = reduce_sum_tile_shfl<RANK_DIM>(RankWarp, output_acc); */
-    /* RankWarp.sync(); */
 
     // Output result to global memory
-    /* if (r == 0) */
+    if (r == 0)
     /* if (RankWarp.thread_rank() == 0) */
       Out[n * T * H * W + t * H * W + (h + hBlockOff) * W + w + wBlockOff] =
           output_acc;
@@ -149,6 +150,19 @@ unsigned intSqrt(unsigned const n) {
   if (q * q > n) return p;
   return q;
 }
+/******************************************************************************
+   Compute the next highest power of 2 for an unsigned integer
+ *****************************************************************************/
+unsigned next_highest_power_2(unsigned n) {
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n++;
+  return n;
+}
 
 /******************************************************************************
    Compute the next lowest power of 2.
@@ -161,6 +175,18 @@ unsigned next_lowest_power_2(unsigned n) {
   n |= (n >> 16);
   return n - (n >> 1);
 }
+
+/******************************************************************************
+   Compute the next lowest power of 2.
+ *****************************************************************************/
+unsigned log_2(unsigned n) {
+  unsigned int r = 0; // r will be lg(v)
+
+  while (n >>= 1) r++;
+  return r;
+}
+
+
 
 float cp4_conv2d_forward_gpu(tensor_shape params,
                              const float* In,
@@ -203,14 +229,16 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned ChannelPow2 = min(32, next_lowest_power_2(C));
+  unsigned ChannelPow2 = min(32, next_highest_power_2(C));
   unsigned RankPow2    = min(32, next_lowest_power_2(Rank));
+  unsigned RankLog2    = min(32, log_2(Rank));
   /* cout << ChannelPow2 << " " << RankPow2 << endl; */
 
-  unsigned BlockSize     = min(256, Rank * ChannelPow2);
+  unsigned NumThreads    = 256;
+  unsigned BlockSize     = min(NumThreads, Rank * ChannelPow2);
   unsigned TileC         = BlockSize / Rank;
   BlockSize              = TileC * Rank;
-  const unsigned spatial = intSqrt(256 / BlockSize);
+  const unsigned spatial = intSqrt(NumThreads / BlockSize);
   const unsigned Bh      = spatial;
   const unsigned Bw      = spatial;
   /* const unsigned sH = Y - 1 + Bh; */
