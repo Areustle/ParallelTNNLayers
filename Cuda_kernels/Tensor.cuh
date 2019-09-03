@@ -20,7 +20,7 @@ struct tensor_shape {
 
   friend bool operator<(const tensor_shape l, const tensor_shape r) {
     return std::tie(l.N, l.H, l.W, l.pad, l.T, l.C, l.Y, l.X, l.Rank)
-           < std::tie(r.N, r.H, r.W, r.pad, r.T, l.C, r.Y, r.X, r.Rank);
+           < std::tie(r.N, r.H, r.W, r.pad, r.T, r.C, r.Y, r.X, r.Rank);
   }
 };
 
