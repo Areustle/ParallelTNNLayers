@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
   }
 
   ostream results(output_buffer);
-  results << "N,C,H,W,pad,fK,fH,fW,us" << endl;
+  results << "N C H W pad T Y X,\t0" << endl;
 
 
   if (!tensors.is_open()) {
@@ -60,8 +60,8 @@ int main(int argc, char** argv) {
     if (line[0] == '#' || line.empty()) continue;
 
     stringstream line_sm(line);
-    unsigned     N, H, W, C, pad, T, Y, X, Rank;
-    line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X >> Rank;
+    unsigned     N, H, W, C, pad, T, Y, X;
+    line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X;
 
     tensor_shape params;
     params.N    = N;
@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
 
   for (auto& p : shapes) {
     float us = NV::run_convolution(p, 47);
-    results << p.N << "," << p.C << "," << p.H << "," << p.W << "," << p.pad
-            << "," << p.T << "," << p.Y << "," << p.X << "," << us << endl;
+    results << p.N << " " << p.C << " " << p.H << " " << p.W << " " << p.pad
+            << " " << p.T << " " << p.Y << " " << p.X << ",\t" << us << endl;
   }
 }

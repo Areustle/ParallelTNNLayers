@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <set>
 #include <sstream>
@@ -30,7 +31,7 @@ int main(int argc, char** argv) {
   int        device = 0;
 
   switch (argc) {
-    case 4: device = atoi(argv[3]);
+    case 4: device                          = atoi(argv[3]);
     case 3: of.open(argv[2]); output_buffer = of.rdbuf();
     case 2: break;
     default:
@@ -43,7 +44,8 @@ int main(int argc, char** argv) {
   }
 
   ostream results(output_buffer);
-  results << "N,C,H,W,pad,fK,fH,fW,Rank,us" << endl;
+  results << showpoint << setw(5);
+  results << "N C H W pad T Y X,\t1,\t\t2,\t\t4,\t\t8,\t\t16" << endl;
 
 
   if (!tensors.is_open()) {
@@ -60,19 +62,19 @@ int main(int argc, char** argv) {
     if (line[0] == '#' || line.empty()) continue;
 
     stringstream line_sm(line);
-    unsigned     N, H, W, C, pad, T, Y, X, Rank;
-    line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X >> Rank;
+    unsigned     N, H, W, C, pad, T, Y, X;
+    line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X;
 
     tensor_shape params;
-    params.N     = N;
-    params.C     = C;
-    params.H     = H;
-    params.W     = W;
-    params.pad   = pad;
-    params.Rank = Rank;
-    params.T    = T;
-    params.Y    = Y;
-    params.X    = X;
+    params.N   = N;
+    params.C   = C;
+    params.H   = H;
+    params.W   = W;
+    params.pad = pad;
+    /* params.Rank = Rank; */
+    params.T = T;
+    params.Y = Y;
+    params.X = X;
 
     shapes.push_back(params);
   }
@@ -82,9 +84,13 @@ int main(int argc, char** argv) {
   cudaSetDevice(device);
 
   for (auto& p : shapes) {
-    float us = CP::run_convolution(p, 47);
-    results << p.N << "," << p.C << "," << p.H << "," << p.W << "," << p.pad
-            << "," << p.T << "," << p.Y << "," << p.X << "," << p.Rank
-            << ", " << us << endl;
+    results << p.N << " " << p.C << " " << p.H << " " << p.W << " " << p.pad
+            << " " << p.T << " " << p.Y << " " << p.X;
+    for (int r = 1; r <= 16; r *= 2) {
+      p.Rank   = r;
+      float us = CP::run_convolution(p, 47);
+      results  << ",\t" << us;
+    }
+    results << endl;
   }
 }
