@@ -7,7 +7,7 @@ using namespace std;
 namespace cg = cooperative_groups;
 
 // Simple cuda error checking macro
-#define ErrChk(ans) \
+#define ErrChk(ans)                                                            \
   { CudaAssert((ans), __FILE__, __LINE__); }
 inline void
 CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
@@ -24,12 +24,12 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
 __constant__ float const_filter[1 << 14];
 
 
-template<unsigned tile_sz>
+template <unsigned tile_sz>
 __device__ __inline__ float
 reduce_sum_tile_shfl(cg::thread_block_tile<tile_sz> g, float val) {
   // Each iteration halves the number of active threads
   // Each thread adds its partial sum[i] to sum[lane+i]
-  for (int i = g.size() >>1; i > 0; i >>= 1) { val += g.shfl_down(val, i); }
+  for (int i = g.size() >> 1; i > 0; i >>= 1) { val += g.shfl_down(val, i); }
 
   return val; // note: only thread 0 will return full sum
 }
@@ -39,7 +39,7 @@ reduce_sum_tile_shfl(cg::thread_block_tile<tile_sz> g, float val) {
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor RANK Decomposition.
  *******************************************************************************/
-template<unsigned CHANNEL_DIM, unsigned RANK>
+template <unsigned CHANNEL_DIM, unsigned RANK>
 __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
                                   const unsigned N,
@@ -92,13 +92,14 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     for (unsigned y = 0; y < Y; ++y)
       for (unsigned x = 0; x < X; ++x) {
         if (y + h + hBlockOff >= pad && y + h + hBlockOff < H + pad
-            && x + w + wBlockOff >= pad && x + w + wBlockOff < W + pad)
+            && x + w + wBlockOff >= pad
+            && x + w + wBlockOff < W + pad)
 #pragma unroll
           for (unsigned r = 0; r < RANK; ++r)
-            pix_acc[r] += iPtr[(h + y + hBlockOff - pad) * W
-                               + (w + x + wBlockOff - pad)]
-                          * const_filter[offH + y * RANK + r]
-                          * const_filter[offW + x * RANK + r];
+            pix_acc[r] +=
+                iPtr[(h + y + hBlockOff - pad) * W + (w + x + wBlockOff - pad)]
+                * const_filter[offH + y * RANK + r]
+                * const_filter[offW + x * RANK + r];
       }
 
     for (unsigned r = 0; r < RANK; ++r)
@@ -127,9 +128,59 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
     if (ct == 0)
       if (hBlockOff + h < H)
         if (wBlockOff + w < W)
-          Out[n * T * H * W + t * H * W + (h + hBlockOff) * W + w + wBlockOff]
-              = out_acc;
+          Out[n * T * H * W + t * H * W + (h + hBlockOff) * W + w + wBlockOff] =
+              out_acc;
   }
+}
+
+
+/******************************************************************************
+   Compute the Integer square root of an unsigned integer.
+ *****************************************************************************/
+unsigned intSqrt(unsigned const n) {
+  if (n < 2) return n;
+
+  // Recursive call:
+  unsigned p = intSqrt(n >> 2) << 1;
+  unsigned q = p + 1;
+  if (q * q > n) return p;
+  return q;
+}
+/******************************************************************************
+   Compute the next highest power of 2 for an unsigned integer
+ *****************************************************************************/
+unsigned next_highest_power_2(unsigned n) {
+  if (n == 0) return 1;
+  n--;
+  n |= n >> 1;
+  n |= n >> 2;
+  n |= n >> 4;
+  n |= n >> 8;
+  n |= n >> 16;
+  n++;
+  return n;
+}
+
+/******************************************************************************
+   Compute the next lowest power of 2.
+ *****************************************************************************/
+unsigned next_lowest_power_2(unsigned n) {
+  n |= (n >> 1);
+  n |= (n >> 2);
+  n |= (n >> 4);
+  n |= (n >> 8);
+  n |= (n >> 16);
+  return n - (n >> 1);
+}
+
+/******************************************************************************
+   Compute the next lowest power of 2.
+ *****************************************************************************/
+unsigned log_2(unsigned n, unsigned step = 1) {
+  unsigned int r = 0; // r will be lg(v)
+
+  while (n >>= step) r++;
+  return r;
 }
 
 
@@ -174,12 +225,12 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned Bw   = 16;
-  unsigned Bh   = 8;
-  unsigned Bc   = 1;
+  unsigned Bw = W < 16 ? 1 : W < 32 ? 4 : W > 128 ? 16 : 8;
+  unsigned Bh = H < 32 ? 1 : H < 32 ? 2 : H > 128 ? 8 : 4;
+  unsigned Bc = C < 32 ? 1 : C > 128 ? 32 : 8;
   unsigned sW   = X - 1 + Bw;
   unsigned sH   = Y - 1 + Bh;
-  size_t   smsz = 0 ; // * ((Bc * Bw * Bh)) * sizeof(float);
+  size_t   smsz = 0; // * ((Bc * Bw * Bh)) * sizeof(float);
 
   if (smsz > prop.sharedMemPerBlock) {
     cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
