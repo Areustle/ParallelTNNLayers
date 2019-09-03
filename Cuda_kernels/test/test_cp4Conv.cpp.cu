@@ -16,10 +16,10 @@ TEST_CASE("Single Convolution Kernel test") {
   unsigned n    = 1;
   unsigned c    = 48;
   unsigned x    = 55;
-  unsigned pad  = 2;
+  unsigned pad  = 5;
   unsigned t    = 256;
-  unsigned f    = 5;
-  unsigned rank = 1;
+  unsigned f    = 11;
+  unsigned rank = 16;
 
   SUBCASE("Forward Convolution Data test") {
 
@@ -38,6 +38,8 @@ TEST_CASE("Single Convolution Kernel test") {
     REQUIRE(CP4.shape[1] == t);
     REQUIRE(CP4.shape[2] == x);
     REQUIRE(CP4.shape[3] == x);
+    /* for (int i = 0; i < CP4.size(); ++i) */
+    /*   REQUIRE(Cudnn.m_data[i] == doctest::Approx(CP4.m_data[i]).epsilon(1e-5)); */
     REQUIRE(AllClose(Cudnn, CP4, 1e-5));
   }
 
@@ -104,12 +106,12 @@ TEST_CASE("Extended Convolution Test") {
 
   std::vector<std::string> tensor_list{
     "Cuda_kernels/bench/tensors_alexnet.txt",
-    "Cuda_kernels/bench/tensors_batch_size.txt",
-    "Cuda_kernels/bench/tensors_channel_depth.txt",
-    "Cuda_kernels/bench/tensors_image_size.txt",
-    "Cuda_kernels/bench/tensors_filter_count.txt",
-    "Cuda_kernels/bench/tensors_filter_size.txt",
-    "Cuda_kernels/bench/tensors_all_scales.txt",
+    /* "Cuda_kernels/bench/tensors_batch_size.txt", */
+    /* "Cuda_kernels/bench/tensors_channel_depth.txt", */
+    /* "Cuda_kernels/bench/tensors_image_size.txt", */
+    /* "Cuda_kernels/bench/tensors_filter_count.txt", */
+    /* "Cuda_kernels/bench/tensors_filter_size.txt", */
+    /* "Cuda_kernels/bench/tensors_all_scales.txt", */
   };
 
   for (auto t : tensor_list) {
