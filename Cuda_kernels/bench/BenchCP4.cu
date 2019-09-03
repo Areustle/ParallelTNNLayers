@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
   ostream results(output_buffer);
   results << showpoint << setw(5);
-  results << "N C H W pad T Y X,\t1,\t\t2,\t\t4,\t\t8,\t\t16" << endl;
+  results << "N C H W pad T Y X,1,2,4,8,16" << endl;
 
 
   if (!tensors.is_open()) {
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     for (int r = 1; r <= 16; r *= 2) {
       p.Rank   = r;
       float us = CP::run_convolution(p, 47);
-      results  << ",\t" << us;
+      results  << ", " << us;
     }
     results << endl;
   }

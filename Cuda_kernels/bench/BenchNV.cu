@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
   }
 
   ostream results(output_buffer);
-  results << "N C H W pad T Y X,\t0" << endl;
+  results << "N C H W pad T Y X,0" << endl;
 
 
   if (!tensors.is_open()) {
