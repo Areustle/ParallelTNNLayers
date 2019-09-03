@@ -7,7 +7,7 @@ using namespace std;
 namespace cg = cooperative_groups;
 
 // Simple cuda error checking macro
-#define ErrChk(ans)                                                            \
+#define ErrChk(ans) \
   { CudaAssert((ans), __FILE__, __LINE__); }
 inline void
 CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
@@ -24,7 +24,7 @@ CudaAssert(cudaError_t code, const char* file, int line, bool abort = true) {
 __constant__ float const_filter[1 << 14];
 
 
-template <int tile_sz>
+template<int tile_sz>
 __device__ __inline__ float
 reduce_sum_tile_shfl(cg::thread_block_tile<tile_sz> g, float val) {
   // Each iteration halves the number of active threads
@@ -40,7 +40,7 @@ reduce_sum_tile_shfl(cg::thread_block_tile<tile_sz> g, float val) {
  * Also known as a Candecomp/Parafac Decomposition, a Canonical Polyadic
  * Decomposition, and a Tensor Rank Decomposition.
  *******************************************************************************/
-template <unsigned CHANNEL_DIM, unsigned RANK_DIM>
+template<unsigned CHANNEL_DIM, unsigned RANK_DIM>
 __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
                                   const float* __restrict__ Input,
                                   const unsigned H,
@@ -67,70 +67,59 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
 
   auto ChannelWarp = cg::tiled_partition<CHANNEL_DIM>(cg::this_thread_block());
 
-  const unsigned n = blockIdx.z;
+  const int n  = blockIdx.z;
+  const int Br = Rank / RANK_DIM;
 
-  unsigned tc = (threadIdx.x) % CHANNEL_DIM;
-  unsigned tr = (threadIdx.x / CHANNEL_DIM) % RANK_DIM;
-  unsigned w  = (threadIdx.x / CHANNEL_DIM / RANK_DIM) % Bw;
-  unsigned h  = (threadIdx.x / CHANNEL_DIM / RANK_DIM / Bw);
+  int tc = (threadIdx.x) % CHANNEL_DIM;
+  int tr = (threadIdx.x / CHANNEL_DIM) % Br;
+  int w  = (threadIdx.x / CHANNEL_DIM / Br) % Bw;
+  int h  = (threadIdx.x / CHANNEL_DIM / Br / Bw);
 
-  const unsigned wBlockOff = blockIdx.x * Bw;
-  const unsigned hBlockOff = blockIdx.y * Bh;
+  const int wOffset = blockIdx.x * Bw;
+  const int hOffset = blockIdx.y * Bh;
+  int       rOffset = RANK_DIM * tr;
 
-  if (h + hBlockOff >= H) return;
-  if (w + wBlockOff >= W) return;
-  if (tr >= Rank) return;
+  if (h + hOffset >= H) return;
+  if (w + wOffset >= W) return;
+  /* if (tr >= Rank) return; */
 
   float local_acc = 0.0f;
   float rank_acc[RANK_DIM];
-  for (unsigned r = 0; r < RANK_DIM; ++r) rank_acc[r] = 0.0f;
 
-  /* const unsigned sH = Y - 1 + Bh; */
-  /* const unsigned sW = X - 1 + Bw; */
+#pragma unroll
+  for (int r = 0; r < RANK_DIM; ++r) rank_acc[r] = 0.0f;
 
-  for (unsigned c = tc; c < C; c += CHANNEL_DIM) {
+  for (int c = tc; c < C; c += CHANNEL_DIM) {
 
     auto active = cg::coalesced_threads();
 
     const float* iPtr      = Input + n * C * H * W + c * H * W;
     float        local_pix = 0.0f;
 
-    for (unsigned y = 0; y < Y; ++y) {
-      for (unsigned x = 0; x < X; ++x) {
-        if (h + hBlockOff + y >= pad       //
-            && h + hBlockOff + y < H + pad //
-            && w + wBlockOff + x >= pad    //
-            && w + wBlockOff + x < W + pad)
-          local_pix += iPtr[(h + hBlockOff + y - pad) * H //
-                            + (w + wBlockOff + x - pad)]
-                       * FX[x * Rank + tr] * FY[y * Rank + tr];
+    for (int y = 0; y < Y; ++y) {
+      for (int x = 0; x < X; ++x) {
+        if (h + hOffset + y >= pad       //
+            && h + hOffset + y < H + pad //
+            && w + wOffset + x >= pad    //
+            && w + wOffset + x < W + pad) {
+
+#pragma unroll
+          for (int r = 0; r < RANK_DIM; ++r) {
+            local_pix += iPtr[(h + hOffset + y - pad) * H //
+                              + (w + wOffset + x - pad)]
+                         * FX[x * Rank + rOffset + r] //
+                         * FY[y * Rank + rOffset + r];
+          }
+        }
       }
     }
 
-    /* for (unsigned y = w; y < sH; y += Bh) */
-    /*   for (unsigned x = w; x < sW; x += Bw) */
-    /*     shared_mem[threadIdx.x % 32] = */
-    /*         (y + hBlockOff >= pad       // */
-    /*          && y + hBlockOff < H + pad // */
-    /*          && x + wBlockOff >= pad    // */
-    /*          && x + wBlockOff < W + pad) */
-    /*             ? iPtr[threadIdx.x % 32] */
-    /*             : (0.0f); // Pad with Zeros if outside the bounds */
-
-    /* active.sync(); */
-
-    /* for (unsigned y = 0; y < sH; ++y) { */
-    /*   for (unsigned x = 0; x < sW; ++x) { */
-    /*     local_pix += shared_mem[threadIdx.x % 32] * FX[x * Rank + tr] // */
-    /*                  * FY[y * Rank + tr]; */
-    /*   } */
-    /* } */
-
-    for (unsigned r = 0; r < RANK_DIM; ++r)
-      rank_acc[r] += local_pix * FC[tc * Rank + tr];
+#pragma unroll
+    for (int r = 0; r < RANK_DIM; ++r)
+      rank_acc[r] += local_pix * FC[tc * Rank + rOffset + r];
   }
 
-  float* work_mem = shared_mem + h * Bw * RANK_DIM + w * RANK_DIM;
+  float* work_mem = shared_mem + h * Bw * Br + w * Br;
 
   local_acc = reduce_sum_tile_shfl<CHANNEL_DIM>(ChannelWarp, local_acc);
 
@@ -139,26 +128,33 @@ __global__ void conv2d_cp4_kernel(float* __restrict__ Out,
   __syncthreads();
 
   // Swap which threads are in the warp.
-  tc = (threadIdx.x / RANK_DIM) % CHANNEL_DIM;
-  tr = threadIdx.x % RANK_DIM;
+  tc = (threadIdx.x / Br) % CHANNEL_DIM;
+  tr = threadIdx.x % Br;
 
-  auto RankWarp = cg::tiled_partition<RANK_DIM>(cg::this_thread_block());
+  rOffset = RANK_DIM * tr;
 
+  auto RankWarp1 = cg::tiled_partition<1>(cg::this_thread_block());
+  auto RankWarp2 = cg::tiled_partition<2>(cg::this_thread_block());
+  auto RankWarp4 = cg::tiled_partition<4>(cg::this_thread_block());
+
+#pragma unroll
   for (int r = 0; r < RANK_DIM; ++r) rank_acc[r] = work_mem[r];
 
   // parallel scale all output channels and sum over rank
-  for (unsigned t = tc; t < T; t += CHANNEL_DIM) {
+  for (int t = tc; t < T; t += CHANNEL_DIM) {
 
-    /* float output_acc = local_acc * FT[t * Rank + r]; */
     float output_acc = 0.0;
-    for (unsigned r = 0; r < RANK_DIM; ++r)
-      output_acc += rank_acc[r] * FT[t * Rank + r];
 
-    output_acc = reduce_sum_tile_shfl<RANK_DIM>(RankWarp, output_acc);
+#pragma unroll
+    for (int r = 0; r < RANK_DIM; ++r)
+      output_acc += rank_acc[r] * FT[t * Rank + rOffset + r];
+
+    if (Br == 1) output_acc = reduce_sum_tile_shfl<1>(RankWarp1, output_acc);
+    if (Br == 2) output_acc = reduce_sum_tile_shfl<2>(RankWarp2, output_acc);
+    if (Br == 4) output_acc = reduce_sum_tile_shfl<4>(RankWarp4, output_acc);
 
     // Output result to global memory
-    if (tr == 0) /* if (RankWarp.thread_rank() == 0) */
-      Out[threadIdx.x] = output_acc;
+    if (tr == 0) Out[n * T * H * W + tr * H * W + h * W + w] = output_acc;
   }
 }
 
@@ -255,13 +251,14 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
 
   const unsigned CHANNEL_DIM = 4;
   const unsigned RANK_DIM    = min(4, Rank);
+  const unsigned Br          = Rank / RANK_DIM;
   const unsigned Bh          = 4;
   const unsigned Bw          = 4;
-  const unsigned BlockSize   = CHANNEL_DIM * RANK_DIM * Bh * Bw;
-  size_t         smsz        = RANK_DIM * Bh * Bw * sizeof(float);
+  const unsigned BlockSize   = CHANNEL_DIM * Br * Bh * Bw;
+  size_t         smsz        = Br * Bh * Bw * sizeof(float);
 
-  cout << BlockSize << " " << CHANNEL_DIM << " "      //
-       << RANK_DIM << " " << Bh << " " << Bw << endl; //"\t\t";
+  cout << BlockSize << " " << CHANNEL_DIM << " "                   //
+       << RANK_DIM << " " << Br << " " << Bh << " " << Bw << endl; //"\t\t";
 
   if (smsz > prop.sharedMemPerBlock) {
     cerr << "Shared Mem Too Big! " << smsz << " > " << prop.sharedMemPerBlock
@@ -286,66 +283,48 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
 
     // clang-format off
     switch(CHANNEL_DIM) {
-      case 32:
-        switch(RANK_DIM) {
-          case 32: conv2d_cp4_kernel<32,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 16: conv2d_cp4_kernel<32,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 8: conv2d_cp4_kernel<32,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 4: conv2d_cp4_kernel<32,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 2: conv2d_cp4_kernel<32,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 1: conv2d_cp4_kernel<32,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-        }
-               break;
-      case 16:
-        switch(RANK_DIM) {
-          case 32: conv2d_cp4_kernel<16,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 16: conv2d_cp4_kernel<16,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 8: conv2d_cp4_kernel<16,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 4: conv2d_cp4_kernel<16,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 2: conv2d_cp4_kernel<16,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 1: conv2d_cp4_kernel<16,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-        }
-               break;
-      case 8:
-        switch(RANK_DIM) {
-          case 32: conv2d_cp4_kernel<8,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 16: conv2d_cp4_kernel<8,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 8: conv2d_cp4_kernel<8,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 4: conv2d_cp4_kernel<8,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 2: conv2d_cp4_kernel<8,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 1: conv2d_cp4_kernel<8,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-        }
-               break;
+      /* case 32: */
+      /*   switch(RANK_DIM) { */
+      /*     case 4: conv2d_cp4_kernel<32,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 2: conv2d_cp4_kernel<32,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 1: conv2d_cp4_kernel<32,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*   } */
+      /*          break; */
+      /* case 16: */
+      /*   switch(RANK_DIM) { */
+      /*     case 4: conv2d_cp4_kernel<16,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 2: conv2d_cp4_kernel<16,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 1: conv2d_cp4_kernel<16,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*   } */
+      /*          break; */
+      /* case 8: */
+      /*   switch(RANK_DIM) { */
+      /*     case 4: conv2d_cp4_kernel<8,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 2: conv2d_cp4_kernel<8,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 1: conv2d_cp4_kernel<8,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*   } */
+      /*          break; */
       case 4:
         switch(RANK_DIM) {
-          case 32: conv2d_cp4_kernel<4,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 16: conv2d_cp4_kernel<4,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 8: conv2d_cp4_kernel<4,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 4: conv2d_cp4_kernel<4,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 2: conv2d_cp4_kernel<4,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
           case 1: conv2d_cp4_kernel<4,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
         }
                break;
-      case 2:
-        switch(RANK_DIM) {
-          case 32: conv2d_cp4_kernel<2,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 16: conv2d_cp4_kernel<2,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 8: conv2d_cp4_kernel<2,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 4: conv2d_cp4_kernel<2,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 2: conv2d_cp4_kernel<2,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 1: conv2d_cp4_kernel<2,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-        }
-               break;
-      case 1:
-        switch(RANK_DIM) {
-          case 32: conv2d_cp4_kernel<1,32><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 16: conv2d_cp4_kernel<1,16><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 8: conv2d_cp4_kernel<1,8><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 4: conv2d_cp4_kernel<1,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 2: conv2d_cp4_kernel<1,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-          case 1: conv2d_cp4_kernel<1,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break;
-        }
-               break;
+      /* case 2: */
+      /*   switch(RANK_DIM) { */
+      /*     case 4: conv2d_cp4_kernel<2,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 2: conv2d_cp4_kernel<2,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 1: conv2d_cp4_kernel<2,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*   } */
+      /*          break; */
+      /* case 1: */
+      /*   switch(RANK_DIM) { */
+      /*     case 4: conv2d_cp4_kernel<1,4><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 2: conv2d_cp4_kernel<1,2><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*     case 1: conv2d_cp4_kernel<1,1><<<Gshp, Bshp, smsz>>>(Out, In, H, W, pad, offT, offC, offY, offX, T, C, Y, X, Rank, Bh, Bw); break; */
+      /*   } */
+      /*          break; */
     }
 
 
