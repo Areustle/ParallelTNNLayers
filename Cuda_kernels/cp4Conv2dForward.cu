@@ -225,9 +225,9 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaDeviceProp prop;
   ErrChk(cudaGetDeviceProperties(&prop, 0));
 
-  unsigned Bw = W < 16 ? 1 : W < 32 ? 4 : W > 128 ? 16 : 8;
-  unsigned Bh = H < 32 ? 1 : H < 32 ? 2 : H > 128 ? 8 : 4;
-  unsigned Bc = C < 32 ? 1 : C > 128 ? 32 : 8;
+  unsigned Bw   = W < 16 ? 1 : W < 32 ? 4 : W > 128 ? 16 : 8;
+  unsigned Bh   = H < 32 ? 1 : H < 32 ? 2 : H > 128 ? 8 : 4;
+  unsigned Bc   = C < 32 ? 1 : C > 128 ? 32 : 8;
   unsigned sW   = X - 1 + Bw;
   unsigned sH   = Y - 1 + Bh;
   size_t   smsz = 0; // * ((Bc * Bw * Bh)) * sizeof(float);
