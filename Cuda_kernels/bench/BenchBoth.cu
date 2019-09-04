@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 
+#include "../NVConv2d.cuh"
 #include "../cp4Conv2d.cuh"
 
 using namespace std;
@@ -35,7 +36,7 @@ int main(int argc, char** argv) {
     case 3: of.open(argv[2]); output_buffer = of.rdbuf();
     case 2: break;
     default:
-      cerr << "USAGE: BenchCP4 "
+      cerr << "USAGE: BenchBoth "
               " Tensor_file "
               " [Results_file] "
               " [device_number]"
@@ -45,8 +46,8 @@ int main(int argc, char** argv) {
 
   ostream results(output_buffer);
   results << showpoint << setw(5);
-  results << "N C H W pad T Y X,1,2,4,8,16" << endl;
-
+  results << "N C H W pad T Y X, cuDNN, Rank 1, Rank 2, Rank 4, Rank 8, Rank 16"
+          << endl;
 
   if (!tensors.is_open()) {
     cerr << "Couldn't open tensors file.\n";
@@ -71,7 +72,6 @@ int main(int argc, char** argv) {
     params.H   = H;
     params.W   = W;
     params.pad = pad;
-    /* params.Rank = Rank; */
     params.T = T;
     params.Y = Y;
     params.X = X;
@@ -86,9 +86,13 @@ int main(int argc, char** argv) {
   for (auto& p : shapes) {
     results << p.N << " " << p.C << " " << p.H << " " << p.W << " " << p.pad
             << " " << p.T << " " << p.Y << " " << p.X;
+    p.Rank = 0;
+    float us = NV::run_convolution(p, 47);
+    results  << ", " << us;
+
     for (int r = 1; r <= 16; r *= 2) {
       p.Rank   = r;
-      float us = CP::run_convolution(p, 47);
+      us = CP::run_convolution(p, 47);
       results  << ", " << us;
     }
     results << endl;
