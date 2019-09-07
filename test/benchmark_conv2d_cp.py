@@ -8,15 +8,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
 
 
 N=1
-C=16
-H=32
-W=32
-
-T=16
-Y=3
-X=3
-
-rank=6
+C=3
+H=224
+W=224
+T=96
+Y=11
+X=11
+rank=1
 
 S=C
 

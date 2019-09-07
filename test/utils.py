@@ -174,15 +174,16 @@ def factorize_conv2d_cp(tensor, params):
 
 def recompose_conv2d_cp(factors, params):
     rank = params["rank"]
-    channels = factors[0].shape[2]
+    in_channels = factors[0].shape[2]
     ksz = factors[1].shape[0]
+    out_channels = factors[2].shape[3]
 
-    H0 = factors[0].reshape((channels, rank))
+    H0 = factors[0].reshape((in_channels, rank))
     H1 = factors[1].reshape((ksz * ksz, rank))
-    H2 = factors[2].reshape((rank, channels)).transpose([1,0])
+    H2 = factors[2].reshape((rank, out_channels)).transpose([1,0])
 
     K = tl.kruskal_to_tensor( [H0, H1, H2] )
-    K = np.reshape(K, (channels, ksz, ksz, channels))
+    K = np.reshape(K, (in_channels, ksz, ksz, out_channels))
     K = np.moveaxis(K, 0, 2)
 
     return K
