@@ -185,13 +185,13 @@ unsigned log_2(unsigned n, unsigned step = 1) {
 
 
 float cp4_conv2d_forward_gpu(tensor_shape params,
-                             const float* In,
-                             const float* FT,
-                             const float* FC,
-                             const float* FY,
-                             const float* FX,
-                             float*       Out,
-                             unsigned     PROFCOUNT) {
+                                                  const float* In,
+                                                  const float* FT,
+                                                  const float* FC,
+                                                  const float* FY,
+                                                  const float* FX,
+                                                  float*       Out,
+                                                  unsigned     PROFCOUNT) {
 
   const unsigned N    = params.N;
   const unsigned H    = params.H;
@@ -310,9 +310,9 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
     }
     // clang-format on
 
-    cudaEventRecord(stop);
     ErrChk(cudaPeekAtLastError());
     ErrChk(cudaDeviceSynchronize());
+    cudaEventRecord(stop);
 
     cudaEventSynchronize(stop);
     float milliseconds = 0;
@@ -322,5 +322,7 @@ float cp4_conv2d_forward_gpu(tensor_shape params,
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
 
-  return us / PROFCOUNT;
+  us = us / PROFCOUNT;
+
+  return us;
 }

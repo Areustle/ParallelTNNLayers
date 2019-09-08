@@ -27,7 +27,8 @@ namespace CP {
   /*                             Tensor const, */
   /*                             unsigned pad = 1); */
 
-  float run_convolution(tensor_shape, unsigned PROFCOUNT = 1);
+  std::pair<float, unsigned>
+  run_convolution(tensor_shape, unsigned PROFCOUNT = 1);
 
 } // namespace CP
 

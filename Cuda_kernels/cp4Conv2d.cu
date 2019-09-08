@@ -155,7 +155,8 @@ Tensor CP::Conv2dForward(Tensor const Input,
 /*******************************************************************************
  * Run_convolution operation with a profile count loop
  ******************************************************************************/
-float CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
+std::pair<float, unsigned>
+CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
 
   float* In;
   float* Out;
@@ -172,6 +173,10 @@ float CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaMalloc(&Out, p.N * p.T * p.H * p.W * sizeof(float));
 
 
+  unsigned mem =
+      sizeof(float) * ((p.N * p.T * p.H * p.W) + (p.N * p.C * p.H * p.W)
+                       + p.Rank * (p.T + p.C + p.X + p.Y));
+
   float us = cp4_conv2d_forward_gpu(p, In, FT, FC, FY, FX, Out, PROFCOUNT);
 
   cudaFree(In);
@@ -181,7 +186,7 @@ float CP::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaFree(FX);
   cudaFree(Out);
 
-  return us;
+  return std::make_pair(us,mem);
 }
 
 

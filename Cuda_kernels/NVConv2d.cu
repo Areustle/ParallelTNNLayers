@@ -5,21 +5,21 @@
 
 using namespace std;
 
-#define checkCUDNN(expression)                                                \
-  {                                                                           \
-    cudnnStatus_t status = (expression);                                      \
-    if (status != CUDNN_STATUS_SUCCESS) {                                     \
-      std::cerr << "Error in " << __FILE__ << " on line " << __LINE__ << ": " \
-                << cudnnGetErrorString(status) << std::endl;                  \
-      std::exit(EXIT_FAILURE);                                                \
-    }                                                                         \
+#define checkCUDNN(expression)                                                 \
+  {                                                                            \
+    cudnnStatus_t status = (expression);                                       \
+    if (status != CUDNN_STATUS_SUCCESS) {                                      \
+      std::cerr << "Error in " << __FILE__ << " on line " << __LINE__ << ": "  \
+                << cudnnGetErrorString(status) << std::endl;                   \
+      std::exit(EXIT_FAILURE);                                                 \
+    }                                                                          \
   }
 
-float conv2d_forward_gpu(tensor_shape params,
-                         float*       In,
-                         float*       Filter,
-                         float*       Out,
-                         unsigned     PROFCOUNT = 1) {
+std::pair<float, unsigned> conv2d_forward_gpu(tensor_shape params,
+                                              float*   In,
+                                              float*   Filter,
+                                              float*   Out,
+                                              unsigned PROFCOUNT = 1) {
 
   const unsigned N   = params.N;
   const unsigned C   = params.C;
@@ -139,7 +139,12 @@ float conv2d_forward_gpu(tensor_shape params,
   cudnnDestroyConvolutionDescriptor(convolution_descriptor);
   cudnnDestroy(cudnn);
 
-  return (us / PROFCOUNT);
+  us = (us / PROFCOUNT);
+  unsigned mem =
+      sizeof(float) * ((N * T * H * W) + (N * C * H * W) + (T * C * X * Y))
+      + workspace_bytes;
+
+  return std::make_pair(us, mem);
 }
 
 
@@ -463,7 +468,8 @@ Tensor NV::Conv2dBackwardFilter(const Tensor dLdO,
 /*******************************************************************************
  * run_convolution operation with a profile count loop
  ******************************************************************************/
-float NV::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
+std::pair<float, unsigned>
+NV::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
 
   float* In;
   float* Out;
@@ -474,7 +480,7 @@ float NV::run_convolution(tensor_shape p, unsigned PROFCOUNT) {
   cudaMalloc(&Filter, p.T * p.C * p.Y * p.X * sizeof(float));
   cudaMalloc(&Out, p.N * p.T * p.H * p.W * sizeof(float));
 
-  float us = conv2d_forward_gpu(p, In, Filter, Out, PROFCOUNT);
+  auto us = conv2d_forward_gpu(p, In, Filter, Out, PROFCOUNT);
 
   cudaFree(In);
   cudaFree(Filter);

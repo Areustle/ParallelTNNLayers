@@ -49,23 +49,20 @@ add_test(test_main test_main)
 # ##############################################################################
 # Benchmarks
 # ##############################################################################
-# add_executable(CP4Conv2dForward cp4Conv2d.cu) add_executable(NVConv2dForward
-# NVConv2d.cu)
-add_executable(Tensor_Benchmark bench/bench_generic.cu)
-add_executable(BenchCP4 bench/BenchCP4.cu)
-add_executable(BenchNV bench/BenchNV.cu)
-add_executable(BenchBoth bench/BenchBoth.cu)
+add_executable(CP4Conv2dForward cp4Conv2d.cu) 
+add_executable(NVConv2dForward NVConv2d.cu)
+add_executable(BenchBothTime bench/BenchBothTime.cu)
+add_executable(BenchBothMem bench/BenchBothMem.cu)
 
-target_compile_features(Tensor_Benchmark PUBLIC cxx_std_11)
-target_compile_features(BenchCP4 PUBLIC cxx_std_11)
-target_compile_features(BenchNV PUBLIC cxx_std_11)
-target_compile_features(BenchBoth PUBLIC cxx_std_11)
+target_compile_features(CP4Conv2dForward PUBLIC cxx_std_11)
+target_compile_features(NVConv2dForward PUBLIC cxx_std_11)
+target_compile_features(BenchBothTime PUBLIC cxx_std_11)
+target_compile_features(BenchBothMem PUBLIC cxx_std_11)
 
-# target_link_libraries(CP4Conv2dForward PRIVATE Tensor)
-# target_link_libraries(NVConv2dForward PRIVATE cudnn Tensor)
-target_link_libraries(BenchCP4 PRIVATE cp4conv)
-target_link_libraries(BenchNV PRIVATE NVConv2d)
-target_link_libraries(BenchBoth PRIVATE cp4conv NVConv2d)
+target_link_libraries(CP4Conv2dForward PRIVATE cp4conv Tensor)
+target_link_libraries(NVConv2dForward PRIVATE cudnn Tensor)
+target_link_libraries(BenchBothTime PRIVATE cp4conv NVConv2d)
+target_link_libraries(BenchBothMem PRIVATE cp4conv NVConv2d)
 
 # target_compile_options(CP4Conv2dForward PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
 # --generate-line-info >)

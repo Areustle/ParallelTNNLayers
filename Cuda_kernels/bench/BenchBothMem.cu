@@ -1,11 +1,13 @@
 #include <algorithm>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <set>
 #include <sstream>
 #include <string>
 
 #include "../NVConv2d.cuh"
+#include "../cp4Conv2d.cuh"
 
 using namespace std;
 
@@ -30,11 +32,11 @@ int main(int argc, char** argv) {
   int        device = 0;
 
   switch (argc) {
-    case 4: device = atoi(argv[3]);
+    case 4: device                          = atoi(argv[3]);
     case 3: of.open(argv[2]); output_buffer = of.rdbuf();
     case 2: break;
     default:
-      cerr << "USAGE: BenchNV "
+      cerr << "USAGE: BenchBoth "
               " Tensor_file "
               " [Results_file] "
               " [device_number]"
@@ -43,8 +45,9 @@ int main(int argc, char** argv) {
   }
 
   ostream results(output_buffer);
-  results << "N C H W pad T Y X,0" << endl;
-
+  results << showpoint << setw(5);
+  results << "N C H W pad T Y X, cuDNN, Rank 1, Rank 2, Rank 4, Rank 8, Rank 16"
+          << endl;
 
   if (!tensors.is_open()) {
     cerr << "Couldn't open tensors file.\n";
@@ -64,15 +67,14 @@ int main(int argc, char** argv) {
     line_sm >> N >> C >> H >> W >> pad >> T >> Y >> X;
 
     tensor_shape params;
-    params.N    = N;
-    params.C    = C;
-    params.H    = H;
-    params.W    = W;
-    params.pad  = pad;
-    params.Rank = 0;
-    params.T    = T;
-    params.Y    = Y;
-    params.X    = X;
+    params.N   = N;
+    params.C   = C;
+    params.H   = H;
+    params.W   = W;
+    params.pad = pad;
+    params.T   = T;
+    params.Y   = Y;
+    params.X   = X;
 
     shapes.push_back(params);
   }
@@ -82,8 +84,25 @@ int main(int argc, char** argv) {
   cudaSetDevice(device);
 
   for (auto& p : shapes) {
-    float us = NV::run_convolution(p, 47);
     results << p.N << " " << p.C << " " << p.H << " " << p.W << " " << p.pad
-            << " " << p.T << " " << p.Y << " " << p.X << ",\t" << us << endl;
+            << " " << p.T << " " << p.Y << " " << p.X;
+    p.Rank = 0;
+    pair<float, unsigned> x = NV::run_convolution(p, 47);
+    /* float    us  = get<0>(x); */
+    unsigned bytes = get<1>(x);
+
+    results << ", " << bytes / 1024;
+
+    for (int r = 1; r <= 16; r *= 2) {
+      p.Rank = r;
+
+      pair<float, unsigned> x = CP::run_convolution(p, 47);
+      /* float    us  = get<0>(x); */
+      unsigned bytes = get<1>(x);
+
+
+      results << ", " << bytes / 1024;
+    }
+    results << endl;
   }
 }

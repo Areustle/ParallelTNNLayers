@@ -72,9 +72,9 @@ int main(int argc, char** argv) {
     params.H   = H;
     params.W   = W;
     params.pad = pad;
-    params.T = T;
-    params.Y = Y;
-    params.X = X;
+    params.T   = T;
+    params.Y   = Y;
+    params.X   = X;
 
     shapes.push_back(params);
   }
@@ -87,13 +87,15 @@ int main(int argc, char** argv) {
     results << p.N << " " << p.C << " " << p.H << " " << p.W << " " << p.pad
             << " " << p.T << " " << p.Y << " " << p.X;
     p.Rank = 0;
-    float us = NV::run_convolution(p, 47);
-    results  << ", " << us;
+    pair<float, unsigned> x = NV::run_convolution(p, 47);
+    float us = get<0>(x);
+    results << ", " << us;
 
     for (int r = 1; r <= 16; r *= 2) {
-      p.Rank   = r;
-      us = CP::run_convolution(p, 47);
-      results  << ", " << us;
+      p.Rank = r;
+      pair<float, unsigned> x = CP::run_convolution(p, 47);
+      float us = get<0>(x);
+      results << ", " << us;
     }
     results << endl;
   }

@@ -11,7 +11,8 @@ namespace NV {
   Tensor
   Conv2dBackwardFilter(const Tensor, const Tensor, const Tensor, unsigned);
 
-  float run_convolution(tensor_shape, unsigned PROFCOUNT = 1);
+  std::pair<float, unsigned>
+  run_convolution(tensor_shape, unsigned PROFCOUNT = 1);
 
 } // namespace NV
 
