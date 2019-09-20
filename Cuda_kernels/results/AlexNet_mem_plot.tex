@@ -1,0 +1,122 @@
+% This file was created by tikzplotlib v0.8.2.
+\begin{tikzpicture}
+
+\definecolor{color0}{rgb}{0.462745098,0.7254901961,0}
+\definecolor{color1}{rgb}{1,0.2,0}
+\definecolor{color2}{rgb}{1,0.4,0}
+\definecolor{color3}{rgb}{1,0.6,0}
+\definecolor{color4}{rgb}{1,0.8,0}
+\definecolor{color5}{rgb}{0,0.2,1}
+\definecolor{color6}{rgb}{0,0.4,1}
+\definecolor{color7}{rgb}{0,0.6,1}
+\definecolor{color8}{rgb}{0,0.8,1}
+
+\begin{axis}[
+axis background/.style={fill=white!97.0!black},
+legend cell align={left},
+legend style={draw=white!80.0!black},
+tick align=outside,
+tick pos=left,
+title={Global Memory Usage of Convolution Layers - AlexNet},
+x grid style={white!69.01960784313725!black},
+xlabel={AlexNet Layers},
+xmin=-0.5, xmax=4.5,
+xtick style={color=black},
+xtick={0,1,2,3,4},
+xticklabels={Layer 1,Layer 2,Layer 3,Layer 4,Layer 5},
+y grid style={white!69.01960784313725!black},
+ylabel={KiB},
+ymin=0, ymax=79646.240625,
+ytick style={color=black}
+]
+\draw[fill=color0,draw opacity=0] (axis cs:-0.25,0) rectangle (axis cs:-0.204545454545455,19834.1328125);
+\addlegendimage{ybar,ybar legend,fill=color0,draw opacity=0};
+\addlegendentry{ cuDNN}
+
+\draw[fill=color0,draw opacity=0] (axis cs:0.75,0) rectangle (axis cs:0.795454545454545,4809.91796875);
+\draw[fill=color0,draw opacity=0] (axis cs:1.75,0) rectangle (axis cs:1.79545454545455,14880);
+\draw[fill=color0,draw opacity=0] (axis cs:2.75,0) rectangle (axis cs:2.79545454545455,10173.75);
+\draw[fill=color0,draw opacity=0] (axis cs:3.75,0) rectangle (axis cs:3.79545454545455,6824.75);
+\draw[fill=red,draw opacity=0] (axis cs:-0.204545454545455,0) rectangle (axis cs:-0.159090909090909,19404.47265625);
+\addlegendimage{ybar,ybar legend,fill=red,draw opacity=0};
+\addlegendentry{ Fused Rank 1}
+
+\draw[fill=red,draw opacity=0] (axis cs:0.795454545454545,0) rectangle (axis cs:0.840909090909091,3593.4140625);
+\draw[fill=red,draw opacity=0] (axis cs:1.79545454545455,0) rectangle (axis cs:1.84090909090909,1825.0234375);
+\draw[fill=red,draw opacity=0] (axis cs:2.79545454545455,0) rectangle (axis cs:2.84090909090909,382.5234375);
+\draw[fill=red,draw opacity=0] (axis cs:3.79545454545455,0) rectangle (axis cs:3.84090909090909,297.5234375);
+\draw[fill=color1,draw opacity=0] (axis cs:-0.159090909090909,0) rectangle (axis cs:-0.113636363636364,19404.9453125);
+\addlegendimage{ybar,ybar legend,fill=color1,draw opacity=0};
+\addlegendentry{ Fused Rank 2}
+
+\draw[fill=color1,draw opacity=0] (axis cs:0.840909090909091,0) rectangle (axis cs:0.886363636363636,3594.640625);
+\draw[fill=color1,draw opacity=0] (axis cs:1.84090909090909,0) rectangle (axis cs:1.88636363636364,1827.546875);
+\draw[fill=color1,draw opacity=0] (axis cs:2.84090909090909,0) rectangle (axis cs:2.88636363636364,384.796875);
+\draw[fill=color1,draw opacity=0] (axis cs:3.84090909090909,0) rectangle (axis cs:3.88636363636364,299.296875);
+\draw[fill=color2,draw opacity=0] (axis cs:-0.113636363636364,0) rectangle (axis cs:-0.0681818181818182,19405.890625);
+\addlegendimage{ybar,ybar legend,fill=color2,draw opacity=0};
+\addlegendentry{ Fused Rank 4}
+
+\draw[fill=color2,draw opacity=0] (axis cs:0.886363636363636,0) rectangle (axis cs:0.931818181818182,3597.09375);
+\draw[fill=color2,draw opacity=0] (axis cs:1.88636363636364,0) rectangle (axis cs:1.93181818181818,1832.59375);
+\draw[fill=color2,draw opacity=0] (axis cs:2.88636363636364,0) rectangle (axis cs:2.93181818181818,389.34375);
+\draw[fill=color2,draw opacity=0] (axis cs:3.88636363636364,0) rectangle (axis cs:3.93181818181818,302.84375);
+\draw[fill=color3,draw opacity=0] (axis cs:-0.0681818181818182,0) rectangle (axis cs:-0.0227272727272727,19407.78125);
+\addlegendimage{ybar,ybar legend,fill=color3,draw opacity=0};
+\addlegendentry{ Fused Rank 8}
+
+\draw[fill=color3,draw opacity=0] (axis cs:0.931818181818182,0) rectangle (axis cs:0.977272727272727,3602);
+\draw[fill=color3,draw opacity=0] (axis cs:1.93181818181818,0) rectangle (axis cs:1.97727272727273,1842.6875);
+\draw[fill=color3,draw opacity=0] (axis cs:2.93181818181818,0) rectangle (axis cs:2.97727272727273,398.4375);
+\draw[fill=color3,draw opacity=0] (axis cs:3.93181818181818,0) rectangle (axis cs:3.97727272727273,309.9375);
+\draw[fill=color4,draw opacity=0] (axis cs:-0.0227272727272727,0) rectangle (axis cs:0.0227272727272727,19411.5625);
+\addlegendimage{ybar,ybar legend,fill=color4,draw opacity=0};
+\addlegendentry{ Fused Rank 16}
+
+\draw[fill=color4,draw opacity=0] (axis cs:0.977272727272727,0) rectangle (axis cs:1.02272727272727,3611.8125);
+\draw[fill=color4,draw opacity=0] (axis cs:1.97727272727273,0) rectangle (axis cs:2.02272727272727,1862.875);
+\draw[fill=color4,draw opacity=0] (axis cs:2.97727272727273,0) rectangle (axis cs:3.02272727272727,416.625);
+\draw[fill=color4,draw opacity=0] (axis cs:3.97727272727273,0) rectangle (axis cs:4.02272727272727,324.125);
+\draw[fill=blue,draw opacity=0] (axis cs:0.0227272727272727,0) rectangle (axis cs:0.0681818181818182,19992.09765625);
+\addlegendimage{ybar,ybar legend,fill=blue,draw opacity=0};
+\addlegendentry{ Pairwise Rank 1}
+
+\draw[fill=blue,draw opacity=0] (axis cs:1.02272727272727,0) rectangle (axis cs:1.06818181818182,3627.86328125);
+\draw[fill=blue,draw opacity=0] (axis cs:2.02272727272727,0) rectangle (axis cs:2.06818181818182,1832.06640625);
+\draw[fill=blue,draw opacity=0] (axis cs:3.02272727272727,0) rectangle (axis cs:3.06818181818182,383.00390625);
+\draw[fill=blue,draw opacity=0] (axis cs:4.02272727272727,0) rectangle (axis cs:4.06818181818182,298.50390625);
+\draw[fill=color5,draw opacity=0] (axis cs:0.0681818181818182,0) rectangle (axis cs:0.113636363636364,20972.1953125);
+\addlegendimage{ybar,ybar legend,fill=color5,draw opacity=0};
+\addlegendentry{ Pairwise Rank 2}
+
+\draw[fill=color5,draw opacity=0] (axis cs:1.06818181818182,0) rectangle (axis cs:1.11363636363636,3687.171875);
+\draw[fill=color5,draw opacity=0] (axis cs:2.06818181818182,0) rectangle (axis cs:2.11363636363636,1847.328125);
+\draw[fill=color5,draw opacity=0] (axis cs:3.06818181818182,0) rectangle (axis cs:3.11363636363636,387.078125);
+\draw[fill=color5,draw opacity=0] (axis cs:4.06818181818182,0) rectangle (axis cs:4.11363636363636,302.578125);
+\draw[fill=color6,draw opacity=0] (axis cs:0.113636363636364,0) rectangle (axis cs:0.159090909090909,24108.390625);
+\addlegendimage{ybar,ybar legend,fill=color6,draw opacity=0};
+\addlegendentry{ Pairwise Rank 4}
+
+\draw[fill=color6,draw opacity=0] (axis cs:1.11363636363636,0) rectangle (axis cs:1.15909090909091,3876.6875);
+\draw[fill=color6,draw opacity=0] (axis cs:2.11363636363636,0) rectangle (axis cs:2.15909090909091,1894.9375);
+\draw[fill=color6,draw opacity=0] (axis cs:3.11363636363636,0) rectangle (axis cs:3.15909090909091,399.1875);
+\draw[fill=color6,draw opacity=0] (axis cs:4.11363636363636,0) rectangle (axis cs:4.15909090909091,314.6875);
+\draw[fill=color7,draw opacity=0] (axis cs:0.159090909090909,0) rectangle (axis cs:0.204545454545455,35084.78125);
+\addlegendimage{ybar,ybar legend,fill=color7,draw opacity=0};
+\addlegendentry{ Pairwise Rank 8}
+
+\draw[fill=color7,draw opacity=0] (axis cs:1.15909090909091,0) rectangle (axis cs:1.20454545454545,4539.3125);
+\draw[fill=color7,draw opacity=0] (axis cs:2.15909090909091,0) rectangle (axis cs:2.20454545454545,2058.5);
+\draw[fill=color7,draw opacity=0] (axis cs:3.15909090909091,0) rectangle (axis cs:3.20454545454545,439.25);
+\draw[fill=color7,draw opacity=0] (axis cs:4.15909090909091,0) rectangle (axis cs:4.20454545454546,354.75);
+\draw[fill=color8,draw opacity=0] (axis cs:0.204545454545455,0) rectangle (axis cs:0.25,75853.5625);
+\addlegendimage{ybar,ybar legend,fill=color8,draw opacity=0};
+\addlegendentry{ Pairwise Rank 16}
+
+\draw[fill=color8,draw opacity=0] (axis cs:1.20454545454545,0) rectangle (axis cs:1.25,6998.9375);
+\draw[fill=color8,draw opacity=0] (axis cs:2.20454545454545,0) rectangle (axis cs:2.25,2659);
+\draw[fill=color8,draw opacity=0] (axis cs:3.20454545454545,0) rectangle (axis cs:3.25,582.75);
+\draw[fill=color8,draw opacity=0] (axis cs:4.20454545454546,0) rectangle (axis cs:4.25,498.25);
+\end{axis}
+
+\end{tikzpicture}

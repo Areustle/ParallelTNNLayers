@@ -1,0 +1,79 @@
+% This file was created by tikzplotlib v0.8.2.
+\begin{tikzpicture}
+
+\definecolor{color0}{rgb}{0.462745098,0.7254901961,0}
+\definecolor{color1}{rgb}{1,0.2,0}
+\definecolor{color2}{rgb}{1,0.4,0}
+\definecolor{color3}{rgb}{1,0.6,0}
+\definecolor{color4}{rgb}{1,0.8,0}
+
+\begin{axis}[
+axis background/.style={fill=white!97.0!black},
+legend cell align={left},
+legend style={draw=white!80.0!black},
+tick align=outside,
+tick pos=left,
+title={TFLOP/s of Convolution Layers - AlexNet},
+x grid style={white!69.01960784313725!black},
+xlabel={AlexNet Layers},
+xmin=-0.5, xmax=4.5,
+xtick style={color=black},
+xtick={0,1,2,3,4},
+xticklabel style = {rotate=30.0},
+xticklabels={Layer 1,Layer 2,Layer 3,Layer 4,Layer 5},
+y grid style={white!69.01960784313725!black},
+ylabel={TFLOPs},
+ymin=0, ymax=2.08069476849437,
+ytick style={color=black}
+]
+\draw[fill=color0,draw opacity=0] (axis cs:-0.25,0) rectangle (axis cs:-0.166666666666667,0);
+\addlegendimage{ybar,ybar legend,fill=color0,draw opacity=0};
+\addlegendentry{ cuDNN}
+
+\draw[fill=color0,draw opacity=0] (axis cs:0.75,0) rectangle (axis cs:0.833333333333333,0);
+\draw[fill=color0,draw opacity=0] (axis cs:1.75,0) rectangle (axis cs:1.83333333333333,0);
+\draw[fill=color0,draw opacity=0] (axis cs:2.75,0) rectangle (axis cs:2.83333333333333,0);
+\draw[fill=color0,draw opacity=0] (axis cs:3.75,0) rectangle (axis cs:3.83333333333333,0);
+\draw[fill=red,draw opacity=0] (axis cs:-0.166666666666667,0) rectangle (axis cs:-0.0833333333333333,0.555891497920033);
+\addlegendimage{ybar,ybar legend,fill=red,draw opacity=0};
+\addlegendentry{ Rank 1}
+
+\draw[fill=red,draw opacity=0] (axis cs:0.833333333333333,0) rectangle (axis cs:0.916666666666667,0.52735682424807);
+\draw[fill=red,draw opacity=0] (axis cs:1.83333333333333,0) rectangle (axis cs:1.91666666666667,0.399630152349345);
+\draw[fill=red,draw opacity=0] (axis cs:2.83333333333333,0) rectangle (axis cs:2.91666666666667,0.153826196366721);
+\draw[fill=red,draw opacity=0] (axis cs:3.83333333333333,0) rectangle (axis cs:3.91666666666667,0.15061437743458);
+\draw[fill=color1,draw opacity=0] (axis cs:-0.0833333333333333,0) rectangle (axis cs:-1.38777878078145e-17,1.09612001458628);
+\addlegendimage{ybar,ybar legend,fill=color1,draw opacity=0};
+\addlegendentry{ Rank 2}
+
+\draw[fill=color1,draw opacity=0] (axis cs:0.916666666666667,0) rectangle (axis cs:1,1.02549094114466);
+\draw[fill=color1,draw opacity=0] (axis cs:1.91666666666667,0) rectangle (axis cs:2,0.720090518919352);
+\draw[fill=color1,draw opacity=0] (axis cs:2.91666666666667,0) rectangle (axis cs:3,0.282188769004939);
+\draw[fill=color1,draw opacity=0] (axis cs:3.91666666666667,0) rectangle (axis cs:4,0.278171762615698);
+\draw[fill=color2,draw opacity=0] (axis cs:-3.46944695195361e-17,0) rectangle (axis cs:0.0833333333333333,1.82324294957278);
+\addlegendimage{ybar,ybar legend,fill=color2,draw opacity=0};
+\addlegendentry{ Rank 4}
+
+\draw[fill=color2,draw opacity=0] (axis cs:1,0) rectangle (axis cs:1.08333333333333,1.45240923630897);
+\draw[fill=color2,draw opacity=0] (axis cs:2,0) rectangle (axis cs:2.08333333333333,1.17172454642123);
+\draw[fill=color2,draw opacity=0] (axis cs:3,0) rectangle (axis cs:3.08333333333333,0.468327747633328);
+\draw[fill=color2,draw opacity=0] (axis cs:4,0) rectangle (axis cs:4.08333333333333,0.463199275262854);
+\draw[fill=color3,draw opacity=0] (axis cs:0.0833333333333333,0) rectangle (axis cs:0.166666666666667,1.93088462055874);
+\addlegendimage{ybar,ybar legend,fill=color3,draw opacity=0};
+\addlegendentry{ Rank 8}
+
+\draw[fill=color3,draw opacity=0] (axis cs:1.08333333333333,0) rectangle (axis cs:1.16666666666667,1.6215633808719);
+\draw[fill=color3,draw opacity=0] (axis cs:2.08333333333333,0) rectangle (axis cs:2.16666666666667,1.27141625105501);
+\draw[fill=color3,draw opacity=0] (axis cs:3.08333333333333,0) rectangle (axis cs:3.16666666666667,0.48503386910241);
+\draw[fill=color3,draw opacity=0] (axis cs:4.08333333333333,0) rectangle (axis cs:4.16666666666667,0.47951960546321);
+\draw[fill=color4,draw opacity=0] (axis cs:0.166666666666667,0) rectangle (axis cs:0.25,1.98161406523273);
+\addlegendimage{ybar,ybar legend,fill=color4,draw opacity=0};
+\addlegendentry{ Rank 16}
+
+\draw[fill=color4,draw opacity=0] (axis cs:1.16666666666667,0) rectangle (axis cs:1.25,1.73156051930212);
+\draw[fill=color4,draw opacity=0] (axis cs:2.16666666666667,0) rectangle (axis cs:2.25,1.25290881535604);
+\draw[fill=color4,draw opacity=0] (axis cs:3.16666666666667,0) rectangle (axis cs:3.25,0.666716796715917);
+\draw[fill=color4,draw opacity=0] (axis cs:4.16666666666667,0) rectangle (axis cs:4.25,0.625326072953619);
+\end{axis}
+
+\end{tikzpicture}
